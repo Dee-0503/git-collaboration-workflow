@@ -86,31 +86,62 @@ if [ "$IS_WORKTREE" = "false" ] && [ "$WORKTREE_COUNT" -le 1 ]; then
   fi
 fi
 
-# 8. GitHub remote check (always runs — no API call, instant)
-REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-GITHUB_SETUP_NEEDED=""
-if [ -z "$REMOTE_URL" ]; then
-  COUNT=$((COUNT + 1))
-  GITHUB_SETUP_NEEDED="no_remote"
-  RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to create a GitHub repository and configure best-practice settings. REASON: No GitHub remote found — code is not backed up and PRs, code review, and merge queue are unavailable. "
-fi
+# ─── GitHub configuration marker ──────────────────────────────────
+# Marker tracks verified GitHub config. Written when all checks pass.
+# Re-checked when: marker missing, remote URL changed, or --full flag.
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+MARKER_FILE=""
+SKIP_GITHUB_CHECK=false
 
-# 9. GitHub branch protection check (only with --full flag to avoid API latency on SessionStart)
-if [ "$FULL_CHECK" = "true" ] && [ -z "$GITHUB_SETUP_NEEDED" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  if [ -n "$REMOTE_URL" ]; then
-    # Robust owner/repo extraction (two-stage sed, avoids non-greedy quantifier issues)
-    OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's#^.+github\.com[:/]##' | sed -E 's#\.git$##')
-    if [ -n "$OWNER_REPO" ]; then
-      # Distinguish 404 (no protection) from API errors (network, rate limit)
-      PROT_RESPONSE=$(gh api "repos/$OWNER_REPO/branches/main/protection" 2>&1) || true
-      if echo "$PROT_RESPONSE" | grep -q "Not Found"; then
-        COUNT=$((COUNT + 1))
-        GITHUB_SETUP_NEEDED="no_protection"
-        RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to configure GitHub branch protection and merge settings. REASON: The main branch has no protection rules — direct pushes and force-pushes are possible, bypassing code review. "
-      fi
-      # On other errors (rate limit, network): skip silently to avoid false positives
+if [ -n "$REPO_ROOT" ]; then
+  MARKER_FILE="${REPO_ROOT}/.claude/.github-setup-verified"
+
+  # --full ignores marker (force re-check)
+  if [ "$FULL_CHECK" != "true" ] && [ -f "$MARKER_FILE" ]; then
+    MARKER_URL=$(sed -n 's/.*"remote_url":"\([^"]*\)".*/\1/p' "$MARKER_FILE" 2>/dev/null || echo "")
+    CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
+    if [ -n "$MARKER_URL" ] && [ "$MARKER_URL" = "$CURRENT_URL" ]; then
+      SKIP_GITHUB_CHECK=true
     fi
   fi
+fi
+
+# 8. GitHub remote and protection check (skipped if marker valid)
+GITHUB_SETUP_NEEDED=""
+if [ "$SKIP_GITHUB_CHECK" = "false" ]; then
+  REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+
+  if [ -z "$REMOTE_URL" ]; then
+    # No remote — need full setup
+    COUNT=$((COUNT + 1))
+    GITHUB_SETUP_NEEDED="no_remote"
+    RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to create a GitHub repository and configure best-practice settings. REASON: No GitHub remote found — code is not backed up and PRs, code review, and merge queue are unavailable. "
+  elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    # Remote exists — check main branch protection (single API call)
+    OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's#^.+github\.com[:/]##' | sed -E 's#\.git$##')
+    if [ -n "$OWNER_REPO" ]; then
+      PROT_EXIT=0
+      PROT_RESPONSE=$(gh api "repos/$OWNER_REPO/branches/main/protection" 2>&1) || PROT_EXIT=$?
+
+      if [ "$PROT_EXIT" -ne 0 ]; then
+        if echo "$PROT_RESPONSE" | grep -q "Not Found"; then
+          # 404 = no protection rules
+          COUNT=$((COUNT + 1))
+          GITHUB_SETUP_NEEDED="no_protection"
+          RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to configure GitHub branch protection and merge settings. REASON: The main branch has no protection rules — direct pushes and force-pushes are possible, bypassing code review. "
+        fi
+        # Other errors (rate limit, network): skip silently, don't write marker
+      else
+        # Protection exists — write marker (GitHub is configured)
+        if [ -n "$MARKER_FILE" ]; then
+          mkdir -p "$(dirname "$MARKER_FILE")"
+          printf '{"verified_at":"%s","remote_url":"%s","repo":"%s"}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REMOTE_URL" "$OWNER_REPO" > "$MARKER_FILE"
+        fi
+      fi
+    fi
+  fi
+  # If gh not installed/authed: can't verify, don't write marker, don't flag error
 fi
 
 # Append worktree status info for all cases

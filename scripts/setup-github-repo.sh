@@ -185,6 +185,13 @@ if [ "$MODE" = "check" ]; then
   check_labels
 
   if [ "$FINDING_COUNT" -eq 0 ]; then
+    # All checks passed — write verification marker
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$REPO_ROOT" ]; then
+      mkdir -p "${REPO_ROOT}/.claude"
+      printf '{"verified_at":"%s","remote_url":"%s","repo":"%s"}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REMOTE_URL" "$OWNER_REPO" > "${REPO_ROOT}/.claude/.github-setup-verified"
+    fi
     printf '{"status":"ok","has_remote":true,"repo":"%s","repo_url":"https://github.com/%s","finding_count":0,"findings":[],"message":"All GitHub settings match best practices."}\n' "$OWNER_REPO" "$OWNER_REPO"
   else
     printf '{"status":"needs_setup","has_remote":true,"repo":"%s","repo_url":"https://github.com/%s","finding_count":%d,"findings":[%s]}\n' "$OWNER_REPO" "$OWNER_REPO" "$FINDING_COUNT" "$FINDINGS"
