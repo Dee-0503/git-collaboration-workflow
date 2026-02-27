@@ -54,9 +54,8 @@ fi
 
 # Escape special characters for JSON string values
 json_escape() {
-  echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' | tr -d '\n'
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' | tr -d '\n\r'
 }
-
 FINDINGS=""
 FINDING_COUNT=0
 ACTIONS=""
@@ -129,24 +128,24 @@ check_branch_protection() {
     return
   fi
 
-  # Check branch protection — capture response and exit code
-  local protection prot_exit=0
-  protection=$(gh api "repos/$OWNER_REPO/branches/$branch/protection" 2>&1) || prot_exit=$?
+  # Check branch protection — single API call extracting all fields as CSV
+  local prot_csv prot_exit=0
+  prot_csv=$(gh api "repos/$OWNER_REPO/branches/$branch/protection" \
+    --jq '[(.enforce_admins.enabled | tostring), (.allow_force_pushes.enabled | tostring), (.required_linear_history.enabled | tostring), ((.required_pull_request_reviews.required_approving_review_count // -1) | tostring)] | join(",")' \
+    2>&1) || prot_exit=$?
 
   if [ "$prot_exit" -ne 0 ]; then
     # Distinguish 404 (no protection) from other errors
-    if echo "$protection" | grep -q "Not Found"; then
+    if echo "$prot_csv" | grep -q "Not Found"; then
       add_finding "${branch}_no_protection" "protection" "No branch protection rules on '$branch'" "none" "protected"
     fi
     # Other errors (rate limit, network): skip silently
     return
   fi
 
-  # Protection exists — extract fields via separate API calls with --jq
+  # Parse CSV: "true,false,true,1"
   local enforce_admins allow_force linear_history review_count
-
-  enforce_admins=$(gh api "repos/$OWNER_REPO/branches/$branch/protection" --jq '.enforce_admins.enabled' 2>/dev/null || echo "unknown")
-  allow_force=$(gh api "repos/$OWNER_REPO/branches/$branch/protection" --jq '.allow_force_pushes.enabled' 2>/dev/null || echo "unknown")
+  IFS=',' read -r enforce_admins allow_force linear_history review_count <<< "$prot_csv"
 
   if [ "$enforce_admins" != "true" ]; then
     add_finding "${branch}_no_admin_enforce" "protection" "Admin enforcement not enabled on '$branch'" "$enforce_admins" "true"
@@ -155,15 +154,11 @@ check_branch_protection() {
     add_finding "${branch}_force_push_allowed" "protection" "Force push is allowed on '$branch'" "$allow_force" "false"
   fi
 
-  if [ "$branch" = "main" ]; then
-    linear_history=$(gh api "repos/$OWNER_REPO/branches/$branch/protection" --jq '.required_linear_history.enabled' 2>/dev/null || echo "unknown")
-    if [ "$linear_history" != "true" ]; then
-      add_finding "main_no_linear_history" "protection" "Linear history not required on main" "$linear_history" "true"
-    fi
+  if [ "$branch" = "main" ] && [ "$linear_history" != "true" ]; then
+    add_finding "main_no_linear_history" "protection" "Linear history not required on main" "$linear_history" "true"
   fi
 
   # Check PR review requirement
-  review_count=$(gh api "repos/$OWNER_REPO/branches/$branch/protection/required_pull_request_reviews" --jq '.required_approving_review_count' 2>/dev/null || echo "-1")
   if [ "$review_count" = "-1" ] || [ -z "$review_count" ]; then
     add_finding "${branch}_no_pr_required" "protection" "Pull request reviews not required on '$branch'" "none" "${expect_reviews} approval(s)"
   elif [ "$branch" = "main" ] && [ "$review_count" -lt "$expect_reviews" ] 2>/dev/null; then
