@@ -1,0 +1,113 @@
+{
+  "description": "Git Collaboration Architecture — 3 prompt-only + 4 hybrid (command+prompt) PreToolUse guards + 1 PostToolUse advisory + 1 SessionStart status check",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-repo-status.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are the **prevent-direct-push** hook.\n\nExamine the Bash command about to be executed. Only act on `git push` commands.\n\n## Rules\n\n1. **Hard-block** (deny, no bypass) if the command pushes to `main`:\n   - Patterns: `git push origin main`, `git push origin HEAD:main`, `git push origin <branch>:main`, or any refspec targeting `main`.\n   - Message: \"Direct pushes to main are forbidden. Please create a Pull Request from your feature branch.\"\n\n2. **Soft-block** (ask, user can confirm) if the command pushes to `integration`:\n   - Patterns: same as above but targeting `integration`.\n   - Message: \"Direct pushes to integration should go through Pull Requests. Are you sure you want to proceed?\"\n\n3. **Allow** if pushing to any other branch (feature/*, phase/*, hotfix/*, release/*, or any non-protected branch).\n\n4. **Allow** if the command is not a `git push` command.\n\n## Edge Cases\n- If no remote is configured or the push target cannot be determined, allow with a systemMessage warning.\n- Parse refspec syntax carefully: `HEAD:refs/heads/main` also targets main.\n- `git push --set-upstream origin feature/x` targets feature/x, not main — allow it.\n\nReturn your decision as: allow, deny, or ask."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are the **prevent-force-push** hook.\n\nExamine the Bash command about to be executed. Only act on `git push` commands that include force flags.\n\n## Detection\nLook for these flags in the command: `--force`, `-f`, `--force-with-lease`.\nIf none of these flags are present, immediately ALLOW.\n\n## Rules (only when force flag detected)\n\n1. **Hard-block** (deny) if force-pushing to `main`:\n   - Message: \"Force push to main is strictly forbidden. History on main must be append-only.\"\n\n2. **Soft-block** (ask) if force-pushing to `integration`:\n   - Message: \"Force push to integration is discouraged. This may disrupt other contributors. Proceed only if you understand the consequences.\"\n\n3. **Allow with warning** if force-pushing to feature/phase/hotfix/release branches:\n   - systemMessage: \"Warning: Force pushing to your branch. This rewrites remote history for this branch.\"\n\nReturn your decision as: allow, deny, or ask."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are the **prevent-rebase-shared** hook.\n\nExamine the Bash command about to be executed. Only act on `git rebase` commands.\n\n## Key Distinction\nYou must distinguish between:\n- **Rebasing a shared branch** (BLOCKED): The current branch IS `main` or `integration`, and the user runs `git rebase`.\n- **Rebasing onto a shared branch** (ALLOWED): The current branch is a feature/phase/hotfix branch, and the user runs `git rebase main` or `git rebase integration` to update their branch.\n\n## Rules\n\n1. **Hard-block** (deny) if the CURRENT branch is `main` or `integration` and a rebase command is being run:\n   - Message: \"Rebasing shared branches (main/integration) is forbidden. Shared branch history must remain linear and append-only.\"\n\n2. **Allow** if the current branch is a feature/phase/hotfix/release branch and is rebasing onto main/integration. This is the correct sync workflow.\n\n3. **Allow** if the command is not a git rebase command.\n\n## How to determine the current branch\nIf the conversation context includes the current branch name, use that. The command `git rebase <upstream>` rebases the CURRENT branch onto <upstream>. If you cannot determine the current branch, ask the user to confirm.\n\nReturn your decision as: allow, deny, or ask."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/scan-conflict-markers.sh",
+            "timeout": 10
+          },
+          {
+            "type": "prompt",
+            "prompt": "You are the **detect-conflict-markers** hook.\n\nExamine the Bash command about to be executed. Only act on `git commit` or `git add` commands.\n\n## Rules\n\n1. Before allowing a `git commit` or `git add`, consider whether any files in the working tree or staging area may contain unresolved conflict markers.\n\n2. Look for these patterns in the conversation context — recently viewed or edited files containing:\n   - `<<<<<<<`\n   - `=======`\n   - `>>>>>>>`\n\n3. If you have evidence that staged files contain conflict markers (e.g., a recent merge/rebase produced conflicts, or you can see conflict markers in file content shown in the conversation), **deny** the commit:\n   - Message: \"Unresolved conflict markers detected. Please resolve all merge conflicts before committing. Look for <<<<<<< ======= >>>>>>> markers in your files.\"\n\n4. If a recent `git merge` or `git rebase` produced conflicts and the user has not clearly resolved them (no `git add` of resolved files, no evidence of marker removal), **deny** the commit.\n\n5. If there is no indication of conflict markers, **allow** the command.\n\n6. If you are uncertain whether conflicts exist, **ask** the user: \"I cannot verify whether all conflict markers have been resolved. Have you resolved all merge conflicts?\"\n\nReturn your decision as: allow, deny, or ask."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-commit-msg.sh",
+            "timeout": 5
+          },
+          {
+            "type": "prompt",
+            "prompt": "You are the **enforce-commit-format** hook.\n\nExamine the Bash command about to be executed. Only act on `git commit` commands that include a message (the `-m` flag).\n\n## Rules\n\n1. Extract the commit message from the `-m` argument.\n\n2. Validate the message against Conventional Commits format:\n   ```\n   ^(feat|fix|docs|chore|refactor|test|ci|build|perf|style)(\\(.+\\))?!?:\\s.+$\n   ```\n\n3. **Allow** if the message matches the pattern. Examples of valid messages:\n   - `feat: add login endpoint`\n   - `fix(auth): resolve token expiry bug`\n   - `docs(readme): update installation steps`\n   - `chore!: drop support for Node 14`\n   - `feat(api): add user search endpoint`\n\n4. **Deny** if the message does NOT match. Provide this guidance:\n   - Message: \"Commit message does not follow Conventional Commits format. Required format: `<type>[optional scope]: <description>`\"\n   - \"Allowed types: feat, fix, docs, chore, refactor, test, ci, build, perf, style\"\n   - \"Examples: `feat: add login page`, `fix(auth): resolve token bug`, `docs: update README`\"\n\n5. If the command is `git commit` WITHOUT `-m` (interactive editor), **allow** it — the format will be validated when the user provides the message.\n\n6. Handle HEREDOC-style messages: if `-m` is followed by `\"$(cat <<'EOF'` or similar, extract the first line for validation.\n\nReturn your decision as: allow or deny."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-branch-name.sh",
+            "timeout": 5
+          },
+          {
+            "type": "prompt",
+            "prompt": "You are the **enforce-branch-naming** hook.\n\nExamine the Bash command about to be executed. Only act on commands that create new branches.\n\n## Detection\nMatch these command patterns:\n- `git checkout -b <name>`\n- `git branch <name>`\n- `git switch -c <name>`\n\nIf the command does not create a new branch, immediately ALLOW.\n\n## Rules\n\n1. Extract the new branch name from the command.\n\n2. Validate the branch name against this pattern:\n   ```\n   ^(feature|phase|hotfix|release)\\/[a-z0-9][a-z0-9._-]*$\n   ```\n\n3. **Allow** if the name matches. Valid examples:\n   - `feature/alice-login`\n   - `feature/bob.api-refactor`\n   - `hotfix/fix-auth-crash`\n   - `phase/phase1-mvp`\n   - `release/v1.2.0`\n\n4. **Deny** if the name does NOT match:\n   - Message: \"Branch name does not follow naming convention.\"\n   - \"Required format: `<type>/<kebab-case-name>`\"\n   - \"Allowed types: feature, phase, hotfix, release\"\n   - \"Name must start with lowercase letter or digit, using only lowercase letters, digits, dots, underscores, and hyphens.\"\n   - \"Examples: `feature/alice-login`, `hotfix/fix-auth`, `release/v1.0.0`\"\n\nReturn your decision as: allow or deny."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/scan-secrets.sh",
+            "timeout": 15
+          },
+          {
+            "type": "prompt",
+            "prompt": "You are the **detect-secrets** hook.\n\nExamine the Bash command about to be executed. Only act on `git add` or `git commit` commands.\n\n## Rules\n\n1. Review the conversation context for any file contents that are being staged or committed. Look for these credential patterns:\n\n   - **AWS Access Keys**: `AKIA[0-9A-Z]{16}`\n   - **GitHub Tokens**: `ghp_[A-Za-z0-9_]{36,}` or `ghs_[A-Za-z0-9_]{36,}`\n   - **OpenAI API Keys**: `sk-[A-Za-z0-9]{48,}`\n   - **Private Keys**: `-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`\n   - **Generic Passwords**: Lines containing `password\\s*=\\s*['\\\"][^'\\\"]+['\\\"]` or `api_key\\s*=\\s*['\\\"][^'\\\"]+['\\\"]` (not in comments or documentation)\n   - **Connection Strings**: `mongodb://.*:.*@`, `postgres://.*:.*@`, `mysql://.*:.*@`\n\n2. **Whitelist check**: If a `.secretsignore` file exists in the project root, patterns listed there are known false positives. If a detected secret matches a whitelist pattern, **allow** the commit without warning.\n\n3. **Hard-block** (deny) if a suspected credential is found and NOT whitelisted:\n   - Message: \"Potential secret or credential detected in staged files. Found: [describe the pattern matched].\"\n   - \"Please remove credentials and use environment variables instead.\"\n   - \"If this is a known false positive, add the pattern to `.secretsignore`.\"\n\n4. **Allow** if no credential patterns are found, or all matches are whitelisted.\n\n5. If you cannot determine the file contents being staged, **allow** but add a systemMessage: \"Unable to verify staged file contents for secrets. Please ensure no credentials are being committed.\"\n\nReturn your decision as: allow, deny, or ask."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are the **pr-scope-check** hook.\n\nExamine the result of the Bash command that just executed. Only act on `git diff --stat` or `git diff --name-only` commands.\n\n## Rules\n\n1. If the command was `git diff --stat` or `git diff --name-only` (or variants with additional flags), count the number of changed files in the output.\n\n2. If the file count exceeds **20**, provide a warning in systemMessage:\n   - \"⚠️ PR Scope Warning: This change touches [N] files (threshold: 20). Consider splitting into smaller, focused PRs for easier review and reduced merge conflict risk.\"\n\n3. If the file count is 20 or fewer, do nothing (no message needed).\n\n4. This hook is advisory only — it never blocks, only warns. Always allow the result to proceed.\n\nReturn: always allow. Use systemMessage for warnings only."
+          }
+        ]
+      }
+    ]
+  }
+}

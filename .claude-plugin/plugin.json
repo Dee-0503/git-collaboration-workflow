@@ -1,0 +1,22 @@
+{
+  "name": "git-collaboration-workflow",
+  "description": "Enforces Git Collaboration Architecture for multi-human and multi-AI teams via prompt-based hooks, guided skill workflows, and a merge-bot agent.",
+  "version": "1.4.0",
+  "author": {
+    "name": "Cee",
+    "email": "cyyyyy0503@gmail.com"
+  },
+  "repository": "https://github.com/Dee-0503/git-collaboration-workflow",
+  "homepage": "https://github.com/Dee-0503/git-collaboration-workflow#readme",
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "collaboration",
+    "workflow",
+    "branch-protection",
+    "conventional-commits",
+    "merge-queue",
+    "multi-agent",
+    "code-review"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "cee-git-plugins",
+  "owner": {
+    "name": "Cee",
+    "email": "cyyyyy0503@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "git-collaboration-workflow",
+      "source": "./",
+      "description": "多人+多AI团队的 Git 协作工作流自动化执行 — 分支保护、规范提交、合并队列、一键回滚"
+    }
+  ]
+}
