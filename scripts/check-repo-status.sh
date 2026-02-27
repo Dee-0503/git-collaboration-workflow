@@ -86,13 +86,18 @@ if [ "$IS_WORKTREE" = "false" ] && [ "$WORKTREE_COUNT" -le 1 ]; then
   fi
 fi
 
-# 8. GitHub remote and protection check (only with --full flag to avoid API latency on SessionStart)
-if [ "$FULL_CHECK" = "true" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-  if [ -z "$REMOTE_URL" ]; then
-    COUNT=$((COUNT + 1))
-    RECS="${RECS}${COUNT}. RECOMMEND: Run /setup-repo to create a GitHub repository and configure best-practice settings. REASON: No GitHub remote found — code is not backed up and PRs, code review, and merge queue are unavailable. "
-  else
+# 8. GitHub remote check (always runs — no API call, instant)
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+GITHUB_SETUP_NEEDED=""
+if [ -z "$REMOTE_URL" ]; then
+  COUNT=$((COUNT + 1))
+  GITHUB_SETUP_NEEDED="no_remote"
+  RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to create a GitHub repository and configure best-practice settings. REASON: No GitHub remote found — code is not backed up and PRs, code review, and merge queue are unavailable. "
+fi
+
+# 9. GitHub branch protection check (only with --full flag to avoid API latency on SessionStart)
+if [ "$FULL_CHECK" = "true" ] && [ -z "$GITHUB_SETUP_NEEDED" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  if [ -n "$REMOTE_URL" ]; then
     # Robust owner/repo extraction (two-stage sed, avoids non-greedy quantifier issues)
     OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's#^.+github\.com[:/]##' | sed -E 's#\.git$##')
     if [ -n "$OWNER_REPO" ]; then
@@ -100,7 +105,8 @@ if [ "$FULL_CHECK" = "true" ] && command -v gh >/dev/null 2>&1 && gh auth status
       PROT_RESPONSE=$(gh api "repos/$OWNER_REPO/branches/main/protection" 2>&1) || true
       if echo "$PROT_RESPONSE" | grep -q "Not Found"; then
         COUNT=$((COUNT + 1))
-        RECS="${RECS}${COUNT}. RECOMMEND: Run /setup-repo to configure GitHub branch protection and merge settings. REASON: The main branch has no protection rules — direct pushes and force-pushes are possible, bypassing code review. "
+        GITHUB_SETUP_NEEDED="no_protection"
+        RECS="${RECS}${COUNT}. AUTO-SETUP: Run /setup-repo to configure GitHub branch protection and merge settings. REASON: The main branch has no protection rules — direct pushes and force-pushes are possible, bypassing code review. "
       fi
       # On other errors (rate limit, network): skip silently to avoid false positives
     fi
@@ -112,7 +118,11 @@ WORKTREE_INFO="worktree_count:${WORKTREE_COUNT},is_worktree:${IS_WORKTREE}"
 
 # Output
 if [ "$COUNT" -gt 0 ]; then
-  printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO"
+  if [ -n "$GITHUB_SETUP_NEEDED" ]; then
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. CRITICAL SETUP: GitHub repository configuration is incomplete (%s). IMMEDIATELY invoke the /setup-repo skill to check and configure GitHub settings before proceeding with any other work. Present the setup-repo findings and ask for user approval to apply fixes.", "autoInvokeSkill": "setup-repo"}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO" "$GITHUB_SETUP_NEEDED"
+  else
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO"
+  fi
 else
   printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | Status: OK. Worktree: %s. No issues detected. Ready to work."}\n' "$BRANCH" "$WORKTREE_INFO"
 fi
