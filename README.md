@@ -32,6 +32,7 @@
 | `/rollback` | 回滚最近一次 main 上的发布 |
 | `/cleanup-branches` | 清理已合并的 feature 分支 |
 | `/check-status` | 仓库健康检查，推荐操作 + 原因 + 需审批 |
+| `/setup-repo` | 检测并配置 GitHub 仓库最佳实践设置（分支保护、合并策略、SemVer 标签） |
 | `/repo-graph` | 生成 Mermaid 分支拓扑图、提交时间线、分支状态图 |
 | `/review-pr` | 结构化代码审查（正确性/安全性/性能/风格/架构 5 个维度） |
 
@@ -134,7 +135,7 @@ git commit -m "feat: add initial feature"
 ```
 git-collaboration-workflow/
 ├── .claude-plugin/
-│   └── plugin.json                 # 插件清单（v1.4.0）
+│   └── plugin.json                 # 插件清单（v1.5.0）
 ├── .secretsignore                  # 凭证白名单
 ├── VALIDATION.md                   # 安装验证清单
 ├── README.md                       # 本文件
@@ -144,6 +145,7 @@ git-collaboration-workflow/
 │   └── hooks.json                  # 13 个 hook 实例（含 4 个混合 command+prompt hook）
 ├── scripts/
 │   ├── check-repo-status.sh        # SessionStart 仓库状态检查
+│   ├── setup-github-repo.sh        # GitHub 仓库最佳实践检查与配置
 │   ├── validate-commit-msg.sh      # Conventional Commits 正则验证
 │   ├── validate-branch-name.sh     # 分支命名正则验证
 │   ├── scan-secrets.sh             # 凭证模式文件扫描
@@ -174,6 +176,8 @@ git-collaboration-workflow/
 │   │   └── SKILL.md                # /cleanup-branches — 清理分支
 │   ├── check-status/
 │   │   └── SKILL.md                # /check-status — 仓库健康检查
+│   ├── setup-repo/
+│   │   └── SKILL.md                # /setup-repo — GitHub 仓库最佳实践配置
 │   ├── repo-graph/
 │   │   └── SKILL.md                # /repo-graph — 分支拓扑可视化
 │   └── review-pr/

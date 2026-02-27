@@ -1,7 +1,7 @@
 {
   "name": "git-collaboration-workflow",
   "description": "Enforces Git Collaboration Architecture for multi-human and multi-AI teams via prompt-based hooks, guided skill workflows, and a merge-bot agent.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "author": {
     "name": "Cee",
     "email": "cyyyyy0503@gmail.com"
