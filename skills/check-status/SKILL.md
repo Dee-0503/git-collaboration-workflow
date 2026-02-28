@@ -26,14 +26,15 @@ explicit user approval before execution.
 
 ### Step 1 — Gather Repository State
 
-Execute the backing script for initial data collection:
+Execute the backing script with the `--full` flag to enable GitHub API checks:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-repo-status.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-repo-status.sh" --full
 ```
 
-The SessionStart hook also runs this script automatically. Parse the
-`systemMessage` JSON for initial state in either case.
+The SessionStart hook also runs this script automatically (without `--full` to
+avoid API latency). Parse the `systemMessage` JSON for initial state in either
+case.
 
 Then run additional checks not covered by the script:
 
@@ -94,6 +95,8 @@ Apply these detection rules:
 | Last commit > 7 days ago | Sync via `/sync-branch` | Long-idle branches accumulate drift |
 | Stashed changes (> 0) | Review stash: `git stash list` | Forgotten stashes may contain important work |
 | Not in worktree & git lock files detected | Create worktree for parallel work | Concurrent git operations detected — two instances sharing one working directory will silently corrupt each other's files |
+| No GitHub remote | Run `/setup-repo` to create repository | Code is not backed up; PRs, code review, and merge queue are unavailable (requires `--full` flag) |
+| GitHub remote but no branch protection on main (or main does not exist on remote) | Run `/setup-repo` to configure settings | Direct pushes and force-pushes bypass code review (requires `--full` flag) |
 
 #### Worktree Isolation Recommendation
 

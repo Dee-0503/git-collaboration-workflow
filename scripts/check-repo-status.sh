@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+# Parse flags
+FULL_CHECK=false
+for arg in "$@"; do
+  case "$arg" in
+    --full) FULL_CHECK=true ;;
+  esac
+done
+
 # Exit silently if not in a git repository
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 0
@@ -75,6 +83,27 @@ if [ "$IS_WORKTREE" = "false" ] && [ "$WORKTREE_COUNT" -le 1 ]; then
   if [ "$LOCK_FILES" -gt 0 ]; then
     COUNT=$((COUNT + 1))
     RECS="${RECS}${COUNT}. RECOMMEND: Use git worktree for parallel development. Run Claude Code's built-in worktree command or use superpowers:using-git-worktrees skill. REASON: Detected active git lock files — another process may be operating on this repository. Without worktree isolation, two instances sharing one working directory will silently corrupt each other's work. "
+  fi
+fi
+
+# 8. GitHub remote and protection check (only with --full flag to avoid API latency on SessionStart)
+if [ "$FULL_CHECK" = "true" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+  if [ -z "$REMOTE_URL" ]; then
+    COUNT=$((COUNT + 1))
+    RECS="${RECS}${COUNT}. RECOMMEND: Run /setup-repo to create a GitHub repository and configure best-practice settings. REASON: No GitHub remote found — code is not backed up and PRs, code review, and merge queue are unavailable. "
+  else
+    # Robust owner/repo extraction (two-stage sed, avoids non-greedy quantifier issues)
+    OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's#^.+github\.com[:/]##' | sed -E 's#\.git$##')
+    if [ -n "$OWNER_REPO" ]; then
+      # Distinguish 404 (no protection) from API errors (network, rate limit)
+      PROT_RESPONSE=$(gh api "repos/$OWNER_REPO/branches/main/protection" 2>&1) || true
+      if echo "$PROT_RESPONSE" | grep -q "Not Found"; then
+        COUNT=$((COUNT + 1))
+        RECS="${RECS}${COUNT}. RECOMMEND: Run /setup-repo to configure GitHub branch protection and merge settings. REASON: The main branch has no protection rules — direct pushes and force-pushes are possible, bypassing code review. "
+      fi
+      # On other errors (rate limit, network): skip silently to avoid false positives
+    fi
   fi
 fi
 

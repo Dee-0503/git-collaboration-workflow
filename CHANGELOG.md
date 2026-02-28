@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.5.0] - 2026-02-27
+
+### Added
+- `/setup-repo` 技能 — 检测并配置 GitHub 仓库最佳实践设置
+  - `scripts/setup-github-repo.sh` — 三模式脚本（check / apply / create-and-apply）
+  - 检查：合并策略（squash-only）、分支保护（main/integration）、SemVer 标签
+  - 配置：一键应用所有最佳实践设置，GitHub Free Plan 自动降级兼容
+- `check-repo-status.sh` 新增检查 #8：GitHub 远程仓库和分支保护检测
+  - 无 GitHub remote → 推荐 `/setup-repo` 创建仓库
+  - 有 remote 但 main 无保护 → 推荐 `/setup-repo` 配置保护
+- `/check-status` 检测规则新增：无 GitHub remote、main 分支无保护
+
+### Changed
+- 插件版本从 1.4.0 升级到 1.5.0
+- README.md 更新项目结构和技能列表
+
 ## [1.4.0] - 2026-02-26
 
 ### Added
