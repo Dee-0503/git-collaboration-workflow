@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.6.0] - 2026-02-27
+
+### Changed
+- `setup-github-repo.sh` — `check_branch_protection()` 从 5 次 API 调用合并为 1 次（单次 `--jq` CSV 提取）
+- `json_escape()` 使用 `printf '%s'` 替代 `echo`，新增 `\r` 转义处理
+- 插件版本从 1.5.0 升级到 1.6.0
+
+### Fixed
+- `check_branch_protection()` 冗余 API 调用导致的性能问题和潜在速率限制风险
+- `json_escape()` 使用 `echo` 可能误解释反斜杠参数和添加多余换行
+
 ## [1.5.0] - 2026-02-27
 
 ### Added

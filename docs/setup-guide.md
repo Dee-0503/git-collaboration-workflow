@@ -369,6 +369,7 @@ claude
 | Rollback | `/rollback` | Revert latest release on main |
 | Cleanup Branches | `/cleanup-branches` | Delete merged feature branches |
 | Check Status | `/check-status` | On-demand repo health check with actionable recommendations |
+| Setup Repo | `/setup-repo` | Detect and configure GitHub best practices (branch protection, squash-only merge, SemVer labels) |
 | Repo Graph | `/repo-graph` | Visualize branch topology and commit history as Mermaid diagrams |
 | Review PR | `/review-pr` | Structured code review with 5 lenses (correctness, security, performance, style, architecture) |
 

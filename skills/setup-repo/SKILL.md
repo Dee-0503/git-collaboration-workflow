@@ -17,6 +17,16 @@ Detect and configure GitHub repository settings to match the Git Collaboration
 Architecture best practices: squash-only merges, branch protection on `main`
 and `integration`, SemVer labels, and auto-delete of merged branches.
 
+## Automatic Triggering
+
+This skill is **automatically invoked** by the SessionStart hook when:
+- No GitHub remote is detected (instant check, no API call)
+- The SessionStart `systemMessage` contains `autoInvokeSkill: "setup-repo"`
+
+When auto-invoked, follow the same steps below but skip the pre-flight (the
+SessionStart hook has already confirmed the git repo context). Start directly
+at Step 1 — Check Current State.
+
 ## Pre-flight
 
 1. Verify this is a git repository: `git rev-parse --git-dir`
