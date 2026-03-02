@@ -7,18 +7,15 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -26,14 +23,47 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Verify API endpoint connectivity
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+        run: |
+          set +e
+          echo "=== Diagnostic ==="
+          echo "BASE_URL length: ${#ANTHROPIC_BASE_URL}"
+          echo "AUTH_TOKEN length: ${#ANTHROPIC_AUTH_TOKEN}"
+          echo "BASE_URL prefix: ${ANTHROPIC_BASE_URL:0:8}..."
+          FULL_URL="${ANTHROPIC_BASE_URL}/v1/messages"
+          echo "Full URL: ${FULL_URL}"
+          echo "=== DNS test ==="
+          HOST=$(echo "$ANTHROPIC_BASE_URL" | sed -E 's#^https?://##' | sed 's#/.*##')
+          echo "Resolving host: ${HOST}"
+          nslookup "$HOST" 2>&1 || echo "DNS lookup failed"
+          echo "=== Connectivity test ==="
+          curl -sv --connect-timeout 10 --max-time 30 \
+            -X POST "${FULL_URL}" \
+            -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' \
+            -o /tmp/api-test.txt -w "\nHTTP_CODE: %{http_code}\n" 2>&1
+          CURL_EXIT=$?
+          echo "curl exit code: ${CURL_EXIT}"
+          echo "=== Response body ==="
+          cat /tmp/api-test.txt 2>/dev/null || true
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "::warning::API connectivity test failed (curl exit ${CURL_EXIT}), proceeding anyway"
+          fi
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-
+          anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
+          plugins: 'code-review@claude-plugins-official'
+          prompt: 'Run /code-review --comment'
+          additional_permissions: |
+            actions: read
