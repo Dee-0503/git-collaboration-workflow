@@ -384,7 +384,7 @@ jobs:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
           ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
-          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           additional_permissions: |
             actions: read
 WFEOF
@@ -425,7 +425,7 @@ jobs:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
           ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
-          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
           plugins: 'code-review@claude-plugins-official'
           prompt: 'Run /code-review --comment'
