@@ -382,6 +382,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
@@ -422,6 +423,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
@@ -446,7 +448,7 @@ apply_labels
 apply_workflows
 
 # Manual steps that cannot be automated via API
-MANUAL_STEPS='"Install Claude GitHub App: https://github.com/apps/claude (or run /install-github-app in Claude Code)","Add ANTHROPIC_API_KEY to repository secrets (Settings > Secrets > Actions) if not already configured","Add ANTHROPIC_BASE_URL to repository secrets if using a custom API endpoint (e.g. third-party relay)","Commit and push .github/workflows/ files to activate Claude Code review automation","Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
+MANUAL_STEPS='"Install Claude GitHub App: https://github.com/apps/claude (or run /install-github-app in Claude Code)","Add ANTHROPIC_API_KEY to repository secrets (Settings > Secrets > Actions) if not already configured","Add ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN to repository secrets if using a custom API endpoint or relay service (e.g. Backgrace)","Commit and push .github/workflows/ files to activate Claude Code review automation","Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
 
 # Output
 if [ "$ERROR_COUNT" -eq 0 ]; then
