@@ -23,12 +23,33 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Verify API endpoint connectivity
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+        run: |
+          echo "Testing connectivity to API endpoint..."
+          HTTP_CODE=$(curl -s -o /tmp/api-test.txt -w "%{http_code}" \
+            -X POST "${ANTHROPIC_BASE_URL}/v1/messages" \
+            -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' \
+            --connect-timeout 10 --max-time 30)
+          echo "HTTP status: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "API endpoint is reachable and authenticated"
+          else
+            echo "API test failed with HTTP ${HTTP_CODE}"
+            cat /tmp/api-test.txt
+            exit 1
+          fi
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
