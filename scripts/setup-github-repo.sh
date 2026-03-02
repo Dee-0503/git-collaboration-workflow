@@ -166,6 +166,34 @@ check_branch_protection() {
   fi
 }
 
+check_workflows() {
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  if [ -z "$repo_root" ]; then return; fi
+
+  if [ ! -f "$repo_root/.github/workflows/claude.yml" ]; then
+    add_finding "workflow_claude_missing" "workflow" "Claude Code interactive workflow (.github/workflows/claude.yml) is missing" "missing" "exists"
+  fi
+
+  if [ ! -f "$repo_root/.github/workflows/claude-code-review.yml" ]; then
+    add_finding "workflow_review_missing" "workflow" "Claude Code auto-review workflow (.github/workflows/claude-code-review.yml) is missing" "missing" "exists"
+  fi
+}
+
+check_api_secret() {
+  local secrets secret_exit=0
+  secrets=$(gh secret list --repo "$OWNER_REPO" --json name --jq '.[].name' 2>&1) || secret_exit=$?
+
+  if [ "$secret_exit" -ne 0 ]; then
+    # Cannot read secrets (permissions or plan): skip silently
+    return
+  fi
+
+  if ! echo "$secrets" | grep -qx "ANTHROPIC_API_KEY"; then
+    add_finding "secret_anthropic_missing" "workflow" "ANTHROPIC_API_KEY secret is not configured (required for Claude Code GitHub Actions)" "missing" "configured"
+  fi
+}
+
 check_labels() {
   local existing_labels
   existing_labels=$(gh label list --repo "$OWNER_REPO" --json name --jq '.[].name' 2>/dev/null || echo "")
@@ -183,6 +211,8 @@ if [ "$MODE" = "check" ]; then
   check_branch_protection "main" "1"
   check_branch_protection "integration" "0"
   check_labels
+  check_workflows
+  check_api_secret
 
   if [ "$FINDING_COUNT" -eq 0 ]; then
     # All checks passed — write verification marker
@@ -304,14 +334,108 @@ apply_labels() {
   fi
 }
 
+# Apply Claude Code workflow files
+apply_workflows() {
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  if [ -z "$repo_root" ]; then return; fi
+
+  mkdir -p "$repo_root/.github/workflows"
+  local created=0
+
+  if [ ! -f "$repo_root/.github/workflows/claude.yml" ]; then
+    cat > "$repo_root/.github/workflows/claude.yml" << 'WFEOF'
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          additional_permissions: |
+            actions: read
+WFEOF
+    created=$((created + 1))
+  fi
+
+  if [ ! -f "$repo_root/.github/workflows/claude-code-review.yml" ]; then
+    cat > "$repo_root/.github/workflows/claude-code-review.yml" << 'WFEOF'
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    branches: [main]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: 'Review this PR for code quality, potential bugs, and adherence to project conventions defined in CLAUDE.md'
+WFEOF
+    created=$((created + 1))
+  fi
+
+  if [ "$created" -gt 0 ]; then
+    add_action "Created ${created} Claude Code workflow file(s) in .github/workflows/ (commit and push to activate)"
+  fi
+}
+
 # Run apply
 apply_repo_settings
 apply_branch_protection "main" "1"
 apply_branch_protection "integration" "0"
 apply_labels
+apply_workflows
 
 # Manual steps that cannot be automated via API
-MANUAL_STEPS='"Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
+MANUAL_STEPS='"Install Claude GitHub App: https://github.com/apps/claude (or run /install-github-app in Claude Code)","Add ANTHROPIC_API_KEY to repository secrets (Settings > Secrets > Actions) if not already configured","Commit and push .github/workflows/ files to activate Claude Code review automation","Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
 
 # Output
 if [ "$ERROR_COUNT" -eq 0 ]; then
