@@ -382,7 +382,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           additional_permissions: |
@@ -423,7 +422,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
