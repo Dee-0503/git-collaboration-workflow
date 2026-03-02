@@ -399,12 +399,15 @@ on:
 
 jobs:
   claude-review:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -417,7 +420,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: 'Review this PR for code quality, potential bugs, and adherence to project conventions defined in CLAUDE.md'
+          plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
+          plugins: 'code-review@claude-plugins-official'
+          prompt: 'Run /code-review --comment'
+          additional_permissions: |
+            actions: read
 WFEOF
     created=$((created + 1))
   fi
