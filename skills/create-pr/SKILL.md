@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: This skill should be used when the user asks to "create a PR", "open a pull request", "submit my changes", "merge my feature", or when feature work is ready for review. Creates a PR to integration with SemVer labeling and file-level conflict detection.
+description: This skill should be used when the user asks to "create a PR", "open a pull request", "submit my changes", "merge my feature", or when feature work is ready for review. Creates a PR to integration with SemVer labeling, file-level conflict detection, and cloud review tracking with review-watcher teammate for PRs targeting main.
 user_invocable: true
 ---
 
@@ -95,6 +95,35 @@ Show:
 - SemVer label applied
 - Any conflict warnings from pre-flight
 - "PR created successfully. It will be reviewed and merged via the merge queue."
+
+### Step 9 — Register in Review Tracker (PRs targeting main only)
+
+If the PR targets `main` (cloud code review will be triggered):
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" register <pr_number> <branch_name>
+```
+
+Inform the user: "PR registered for cloud review tracking."
+
+### Step 10 — Spawn review-watcher Teammate
+
+Offer to start automated review monitoring:
+
+"Cloud code review will run on GitHub Actions (typically 5-15 minutes).
+I can spawn a review-watcher teammate to monitor the review and auto-fix code-level issues.
+You can continue working on other tasks while it monitors."
+
+If user agrees, use the Agent tool to spawn the review-watcher:
+- subagent_type: `git-collaboration-workflow:review-watcher`
+- name: `review-watcher`
+- prompt: "Monitor PR #<number> on branch <branch>. Poll review status every 60 seconds. When review completes, fetch comments, auto-fix code-level issues, and SendMessage logic-level issues to the main controller."
+- run_in_background: true
+
+Inform the user:
+- "review-watcher teammate spawned. It will notify you when the review completes."
+- "Run `/check-review` anytime to manually check status."
+- "Continue working — you'll receive a message when review results are ready."
 
 ## Error Handling
 
