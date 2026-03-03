@@ -61,6 +61,28 @@ if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "integration" ] && [ "$BRANCH" != "
   fi
 fi
 
+# 5.5. Check for pending review comments in tracker DB
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/review-tracker.sh" ]; then
+  TRACKER_OUTPUT=$(bash "$PLUGIN_ROOT/scripts/review-tracker.sh" list 2>/dev/null || echo "")
+  if [ -n "$TRACKER_OUTPUT" ]; then
+    ACTIVE_COUNT=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('active',0))" 2>/dev/null || echo "0")
+    if [ "$ACTIVE_COUNT" -gt 0 ]; then
+      ACTIVE_DETAILS=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+parts = []
+for num, pr in d.get('prs', {}).items():
+    if pr['status'] not in ('passed', 'closed'):
+        parts.append(f\"PR #{num} ({pr['branch']}): {pr['status']}, round {pr.get('round',1)}\")
+print('; '.join(parts))
+" 2>/dev/null || echo "")
+      COUNT=$((COUNT + 1))
+      RECS="${RECS}${COUNT}. RECOMMEND: Run /check-review to view cloud code review results and optionally spawn a review-watcher teammate. REASON: ${ACTIVE_COUNT} PR(s) have pending review activity: ${ACTIVE_DETAILS}. "
+    fi
+  fi
+fi
+
 # 6. Check if integration branch exists
 if ! git rev-parse --verify origin/integration >/dev/null 2>&1; then
   COUNT=$((COUNT + 1))
