@@ -11,3 +11,6 @@ Thumbs.db
 # Temporary
 *.tmp
 *.log
+
+# Review tracker DB (local per-developer state)
+.claude/review-tracker.json
