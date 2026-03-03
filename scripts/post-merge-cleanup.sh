@@ -24,7 +24,7 @@ MERGED_BRANCH=""
 MERGED_PR=""
 
 if echo "$COMMAND" | grep -q 'gh pr merge'; then
-  MERGED_PR=$(echo "$COMMAND" | grep -oE '[0-9]+' | head -1)
+  MERGED_PR=$(echo "$COMMAND" | grep -oE 'gh pr merge[[:space:]]+([0-9]+)' | grep -oE '[0-9]+' | head -1)
   if [ -n "$MERGED_PR" ]; then
     MERGED_BRANCH=$(gh pr view "$MERGED_PR" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
     MERGE_STATE=$(gh pr view "$MERGED_PR" --json state --jq '.state' 2>/dev/null || echo "")

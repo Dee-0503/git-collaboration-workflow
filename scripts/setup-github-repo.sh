@@ -420,6 +420,18 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Clear previous review summary for re-review
+        if: github.event.action == 'synchronize'
+        run: |
+          gh api "repos/\${{ github.repository }}/issues/\${{ github.event.pull_request.number }}/comments" \
+            --jq '.[] | select(.body | test("### Code review")) | select(.user.login | test("github-actions|claude")) | .id' \
+          | while read comment_id; do
+              echo "Clearing stale review summary (comment $comment_id) for re-review"
+              gh api "repos/\${{ github.repository }}/issues/comments/$comment_id" -X DELETE || true
+            done
+        env:
+          GH_TOKEN: \${{ github.token }}
+
       - name: Verify API connectivity
         env:
           ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
@@ -448,8 +460,7 @@ jobs:
             REPO: \${{ github.repository }}
             PR NUMBER: \${{ github.event.pull_request.number }}
             Run /code-review --comment
-          claude_args: |
-            --allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"
+          claude_args: '--allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"'
           show_full_output: true
           additional_permissions: |
             actions: read

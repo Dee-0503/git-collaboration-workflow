@@ -39,37 +39,44 @@ case "$ACTION" in
     BRANCH="${2:?Branch name required}"
     ensure_db
 
+    DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" BRANCH="$BRANCH" NOW="$(now_utc)" \
     python3 -c "
-import json, sys
-with open('$DB_FILE', 'r') as f:
+import json, os
+db_file = os.environ['DB_FILE']
+pr_num = os.environ['PR_NUM']
+branch = os.environ['BRANCH']
+now = os.environ['NOW']
+with open(db_file, 'r') as f:
     db = json.load(f)
-db['prs']['$PR_NUM'] = {
-    'branch': '$BRANCH',
+db['prs'][pr_num] = {
+    'branch': branch,
     'status': 'pending_review',
     'round': 1,
-    'created_at': '$(now_utc)',
-    'updated_at': '$(now_utc)',
+    'created_at': now,
+    'updated_at': now,
     'last_check': '',
     'comments_count': 0
 }
-with open('$DB_FILE', 'w') as f:
+with open(db_file, 'w') as f:
     json.dump(db, f, indent=2)
-print(json.dumps({'status': 'ok', 'pr': '$PR_NUM', 'state': 'pending_review'}))
+print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': 'pending_review'}))
 "
     ;;
 
   status)
     PR_NUM="${1:?PR number required}"
     ensure_db
-    python3 -c "
-import json
-with open('$DB_FILE', 'r') as f:
+    DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" python3 -c "
+import json, os
+db_file = os.environ['DB_FILE']
+pr_num = os.environ['PR_NUM']
+with open(db_file, 'r') as f:
     db = json.load(f)
-pr = db['prs'].get('$PR_NUM')
+pr = db['prs'].get(pr_num)
 if pr:
-    print(json.dumps({'status': 'ok', 'pr': '$PR_NUM', **pr}))
+    print(json.dumps({'status': 'ok', 'pr': pr_num, **pr}))
 else:
-    print(json.dumps({'status': 'not_found', 'pr': '$PR_NUM'}))
+    print(json.dumps({'status': 'not_found', 'pr': pr_num}))
 "
     ;;
 
@@ -78,31 +85,38 @@ else:
     NEW_STATUS="${2:?New status required}"
     COMMENTS="${3:-0}"
     ensure_db
-    python3 -c "
-import json
-with open('$DB_FILE', 'r') as f:
+    DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" NEW_STATUS="$NEW_STATUS" \
+    UPDATED_AT="$(now_utc)" COMMENTS="$COMMENTS" python3 -c "
+import json, os
+db_file = os.environ['DB_FILE']
+pr_num = os.environ['PR_NUM']
+new_status = os.environ['NEW_STATUS']
+updated_at = os.environ['UPDATED_AT']
+comments = int(os.environ['COMMENTS'])
+with open(db_file, 'r') as f:
     db = json.load(f)
-pr = db['prs'].get('$PR_NUM')
+pr = db['prs'].get(pr_num)
 if pr:
     old_status = pr['status']
-    pr['status'] = '$NEW_STATUS'
-    pr['updated_at'] = '$(now_utc)'
-    pr['comments_count'] = int('$COMMENTS')
-    if '$NEW_STATUS' == 'pending_review' and old_status == 'fixing':
+    pr['status'] = new_status
+    pr['updated_at'] = updated_at
+    pr['comments_count'] = comments
+    if new_status == 'pending_review' and old_status == 'fixing':
         pr['round'] = pr.get('round', 1) + 1
-    with open('$DB_FILE', 'w') as f:
+    with open(db_file, 'w') as f:
         json.dump(db, f, indent=2)
-    print(json.dumps({'status': 'ok', 'pr': '$PR_NUM', 'state': '$NEW_STATUS'}))
+    print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': new_status}))
 else:
-    print(json.dumps({'status': 'not_found', 'pr': '$PR_NUM'}))
+    print(json.dumps({'status': 'not_found', 'pr': pr_num}))
 "
     ;;
 
   list)
     ensure_db
-    python3 -c "
-import json
-with open('$DB_FILE', 'r') as f:
+    DB_FILE="$DB_FILE" python3 -c "
+import json, os
+db_file = os.environ['DB_FILE']
+with open(db_file, 'r') as f:
     db = json.load(f)
 active = {k: v for k, v in db['prs'].items() if v['status'] not in ('passed', 'closed')}
 print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active), 'prs': db['prs']}))
@@ -111,14 +125,15 @@ print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active)
 
   cleanup)
     ensure_db
-    python3 -c "
-import json
-with open('$DB_FILE', 'r') as f:
+    DB_FILE="$DB_FILE" python3 -c "
+import json, os
+db_file = os.environ['DB_FILE']
+with open(db_file, 'r') as f:
     db = json.load(f)
 removed = [k for k, v in db['prs'].items() if v['status'] in ('passed', 'closed')]
 for k in removed:
     del db['prs'][k]
-with open('$DB_FILE', 'w') as f:
+with open(db_file, 'w') as f:
     json.dump(db, f, indent=2)
 print(json.dumps({'status': 'ok', 'removed': len(removed), 'remaining': len(db['prs'])}))
 "
