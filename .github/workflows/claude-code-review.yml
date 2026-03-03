@@ -23,6 +23,19 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Clear previous review summary for re-review
+        if: github.event.action == 'synchronize'
+        run: |
+          # Only clear on synchronize (new push), not on opened
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '.[] | select(.body | test("### Code review")) | select(.user.login | test("github-actions|claude")) | .id' \
+          | while read comment_id; do
+              echo "Clearing stale review summary (comment $comment_id) for re-review"
+              gh api "repos/${{ github.repository }}/issues/comments/$comment_id" -X DELETE || true
+            done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Verify API connectivity
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
