@@ -181,7 +181,7 @@ check_workflows() {
 }
 
 check_api_secret() {
-  local secrets secret_exit=0
+  local secrets="" secret_exit=0
   secrets=$(gh secret list --repo "$OWNER_REPO" --json name --jq '.[].name' 2>&1) || secret_exit=$?
 
   if [ "$secret_exit" -ne 0 ]; then
@@ -347,7 +347,7 @@ apply_workflows() {
   local created=0
 
   if [ ! -f "$repo_root/.github/workflows/claude.yml" ]; then
-    cat > "$repo_root/.github/workflows/claude.yml" << 'WFEOF'
+    cat > "$repo_root/.github/workflows/claude.yml" <<'WFEOF'
 name: Claude Code
 
 on:
@@ -394,7 +394,7 @@ WFEOF
   fi
 
   if [ ! -f "$repo_root/.github/workflows/claude-code-review.yml" ]; then
-    cat > "$repo_root/.github/workflows/claude-code-review.yml" << 'WFEOF'
+    cat > "$repo_root/.github/workflows/claude-code-review.yml" <<'WFEOF'
 name: Claude Code Review
 
 on:
