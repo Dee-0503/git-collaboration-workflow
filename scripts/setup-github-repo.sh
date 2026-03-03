@@ -420,17 +420,58 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Clear previous review summary for re-review
+      - name: Prepare re-review context
+        id: prepare-review
         if: github.event.action == 'synchronize'
         run: |
-          gh api "repos/\${{ github.repository }}/issues/\${{ github.event.pull_request.number }}/comments" \
-            --jq '.[] | select(.body | test("### Code review")) | select(.user.login | test("github-actions|claude")) | .id' \
+          PR=${{ github.event.pull_request.number }}
+          REPO=${{ github.repository }}
+
+          COMMENTS_JSON=$(gh api "repos/$REPO/pulls/$PR/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]") | {id, path, line, body}]' 2>/dev/null || echo "[]")
+          COUNT=$(echo "$COMMENTS_JSON" | jq 'length')
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::notice::Found $COUNT previous review comment(s), archiving for re-review"
+
+            ARCHIVE_BODY="<details>"$'\n'
+            ARCHIVE_BODY+="<summary>Review Round Archive — ${COUNT} finding(s) ($(date -u +%Y-%m-%d))</summary>"$'\n\n'
+            ARCHIVE_BODY+="| # | File | Line | Finding |"$'\n'
+            ARCHIVE_BODY+="|---|------|------|---------|"$'\n'
+
+            FINDINGS=""
+            for i in $(seq 0 $((COUNT - 1))); do
+              FILE=$(echo "$COMMENTS_JSON" | jq -r ".[$i].path")
+              LINE=$(echo "$COMMENTS_JSON" | jq -r ".[$i].line // \"N/A\"")
+              BODY=$(echo "$COMMENTS_JSON" | jq -r ".[$i].body" | head -1 | cut -c1-120 | sed 's/|/\\|/g')
+              N=$((i + 1))
+              ARCHIVE_BODY+="| $N | \`$FILE\` | L$LINE | $BODY |"$'\n'
+              FINDINGS+="$N. $FILE:$LINE - $BODY"$'\n'
+            done
+
+            ARCHIVE_BODY+=$'\n'"</details>"
+            echo "$ARCHIVE_BODY" | gh pr comment "$PR" --body-file -
+
+            echo "$COMMENTS_JSON" | jq -r '.[].id' | while read comment_id; do
+              gh api "repos/$REPO/pulls/comments/$comment_id" -X DELETE 2>/dev/null || true
+            done
+
+            {
+              echo "context<<CONTEXT_EOF"
+              echo ""
+              echo "RE-REVIEW CONTEXT: This PR was updated with new commits. The previous review found the following issues. For each finding, verify whether it was addressed in the new code. Flag any unresolved issues and review new changes for additional problems:"
+              echo "$FINDINGS"
+              echo "CONTEXT_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          gh api "repos/$REPO/issues/$PR/comments" \
+            --jq '.[] | select(.body | test("### Code review")) | select(.user.login | test("github-actions|claude")) | .id' 2>/dev/null \
           | while read comment_id; do
-              echo "Clearing stale review summary (comment $comment_id) for re-review"
-              gh api "repos/\${{ github.repository }}/issues/comments/$comment_id" -X DELETE || true
+              gh api "repos/$REPO/issues/comments/$comment_id" -X DELETE 2>/dev/null || true
             done
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Verify API connectivity
         env:
@@ -459,6 +500,7 @@ jobs:
           prompt: |
             REPO: \${{ github.repository }}
             PR NUMBER: \${{ github.event.pull_request.number }}
+            \${{ steps.prepare-review.outputs.context }}
             Run /code-review --comment
           claude_args: '--allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"'
           show_full_output: true
