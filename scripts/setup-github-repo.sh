@@ -189,8 +189,11 @@ check_api_secret() {
     return
   fi
 
-  if ! echo "$secrets" | grep -qx "ANTHROPIC_API_KEY"; then
-    add_finding "secret_anthropic_missing" "workflow" "ANTHROPIC_API_KEY secret is not configured (required for Claude Code GitHub Actions)" "missing" "configured"
+  if ! echo "$secrets" | grep -qx "ANTHROPIC_AUTH_TOKEN"; then
+    add_finding "secret_auth_token_missing" "workflow" "ANTHROPIC_AUTH_TOKEN secret is not configured (required for Claude Code GitHub Actions via Backgrace relay)" "missing" "configured"
+  fi
+  if ! echo "$secrets" | grep -qx "ANTHROPIC_BASE_URL"; then
+    add_finding "secret_base_url_missing" "workflow" "ANTHROPIC_BASE_URL secret is not configured (required for Backgrace relay endpoint)" "missing" "configured"
   fi
 }
 
@@ -403,7 +406,7 @@ jobs:
   claude-review:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
       pull-requests: write
@@ -417,6 +420,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Verify API connectivity
+        env:
+          ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+        run: |
+          set +e
+          echo "BASE_URL prefix: ${ANTHROPIC_BASE_URL:0:10}..."
+          curl -s --connect-timeout 10 --max-time 15 \
+            -X POST "${ANTHROPIC_BASE_URL}/v1/messages" \
+            -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' \
+            -o /dev/null -w "HTTP %{http_code}" && echo " OK" || echo "::warning::API connectivity check failed, proceeding anyway"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
@@ -426,7 +444,13 @@ jobs:
           anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
           plugins: 'code-review@claude-plugins-official'
-          prompt: 'Run /code-review --comment'
+          prompt: |
+            REPO: \${{ github.repository }}
+            PR NUMBER: \${{ github.event.pull_request.number }}
+            Run /code-review --comment
+          claude_args: |
+            --allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"
+          show_full_output: true
           additional_permissions: |
             actions: read
 WFEOF
