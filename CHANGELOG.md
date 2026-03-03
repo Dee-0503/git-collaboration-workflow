@@ -5,6 +5,31 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.7.0] - 2026-03-03
+
+### Added
+- `agents/review-watcher.md` — Teammates-based 云端审查监控 + 自动修复 agent
+  - 轮询 GitHub Actions 审查状态（每 60s）
+  - 代码级问题自动修复 + push
+  - 逻辑级问题通过 SendMessage 通知主控等待人类决策
+- `/check-review` 技能 — 查询云端代码审查状态，按文件分组展示评论，支持重新 spawn review-watcher
+- `scripts/review-tracker.sh` — 本地 JSON DB 管理 PR 审查状态追踪（跨会话恢复）
+- `scripts/post-merge-cleanup.sh` — 合并后分支清理检测脚本
+- PostToolUse hook — 检测 PR 合并完成，建议清理已合并分支（remote + local + worktree）
+- SessionStart hook 增强 — 启动时检测待处理的审查评论，推荐 /check-review
+- `docs/cloud-review-setup.md` — 云端审查配置指南（Backgrace 中继 + 故障排除）
+
+### Changed
+- `/create-pr` 技能增强 — PR 创建后自动注册审查追踪 + 提供 spawn review-watcher teammate
+- `check-repo-status.sh` — 新增审查追踪器状态检查（check #5.5）
+- README.md — 添加完整工作流 Mermaid 图（含 Teammates 架构）+ 云端审查说明
+- `docs/architecture.md` — 添加 Teammates 审查引擎架构说明
+- 插件版本从 1.6.0 升级到 1.7.0
+
+### Fixed
+- `setup-github-repo.sh` — `check_api_secret` 修正为检查 `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL`
+- `setup-github-repo.sh` — 工作流模板同步 `claude_args` + `Bash(gh:*)` + `show_full_output` 配置
+
 ## [1.6.0] - 2026-02-27
 
 ### Changed
