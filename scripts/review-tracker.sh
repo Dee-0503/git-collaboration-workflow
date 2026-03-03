@@ -67,7 +67,7 @@ print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': 'pending_review'}))
     PR_NUM="${1:?PR number required}"
     ensure_db
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" python3 -c "
-import json, os
+import json, os, sys
 db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 with open(db_file, 'r') as f:
@@ -76,7 +76,8 @@ pr = db['prs'].get(pr_num)
 if pr:
     print(json.dumps({'status': 'ok', 'pr': pr_num, **pr}))
 else:
-    print(json.dumps({'status': 'not_found', 'pr': pr_num}))
+    print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
+    sys.exit(1)
 "
     ;;
 
@@ -87,7 +88,7 @@ else:
     ensure_db
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" NEW_STATUS="$NEW_STATUS" \
     UPDATED_AT="$(now_utc)" COMMENTS="$COMMENTS" python3 -c "
-import json, os
+import json, os, sys
 db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 new_status = os.environ['NEW_STATUS']
@@ -101,13 +102,14 @@ if pr:
     pr['status'] = new_status
     pr['updated_at'] = updated_at
     pr['comments_count'] = comments
-    if new_status == 'pending_review' and old_status == 'fixing':
+    if new_status == 'pending_review' and old_status != 'pending_review':
         pr['round'] = pr.get('round', 1) + 1
     with open(db_file, 'w') as f:
         json.dump(db, f, indent=2)
     print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': new_status}))
 else:
-    print(json.dumps({'status': 'not_found', 'pr': pr_num}))
+    print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
+    sys.exit(1)
 "
     ;;
 

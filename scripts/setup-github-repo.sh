@@ -167,21 +167,19 @@ check_branch_protection() {
 }
 
 check_workflows() {
-  local repo_root
-  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-  if [ -z "$repo_root" ]; then return; fi
-
-  if [ ! -f "$repo_root/.github/workflows/claude.yml" ]; then
+  # Check workflow files via GitHub API (not local filesystem)
+  if ! gh api "repos/$OWNER_REPO/contents/.github/workflows/claude.yml" --jq '.name' >/dev/null 2>&1; then
     add_finding "workflow_claude_missing" "workflow" "Claude Code interactive workflow (.github/workflows/claude.yml) is missing" "missing" "exists"
   fi
 
-  if [ ! -f "$repo_root/.github/workflows/claude-code-review.yml" ]; then
+  if ! gh api "repos/$OWNER_REPO/contents/.github/workflows/claude-code-review.yml" --jq '.name' >/dev/null 2>&1; then
     add_finding "workflow_review_missing" "workflow" "Claude Code auto-review workflow (.github/workflows/claude-code-review.yml) is missing" "missing" "exists"
   fi
 }
 
 check_api_secret() {
-  local secrets="" secret_exit=0
+  local secrets
+  local secret_exit=0
   secrets=$(gh secret list --repo "$OWNER_REPO" --json name --jq '.[].name' 2>&1) || secret_exit=$?
 
   if [ "$secret_exit" -ne 0 ]; then
@@ -190,10 +188,11 @@ check_api_secret() {
   fi
 
   if ! echo "$secrets" | grep -qx "ANTHROPIC_AUTH_TOKEN"; then
-    add_finding "secret_auth_token_missing" "workflow" "ANTHROPIC_AUTH_TOKEN secret is not configured (required for Claude Code GitHub Actions via Backgrace relay)" "missing" "configured"
+    add_finding "secret_auth_token_missing" "workflow" "ANTHROPIC_AUTH_TOKEN secret is not configured (required for Claude Code GitHub Actions)" "missing" "configured"
   fi
-  if ! echo "$secrets" | grep -qx "ANTHROPIC_BASE_URL"; then
-    add_finding "secret_base_url_missing" "workflow" "ANTHROPIC_BASE_URL secret is not configured (required for Backgrace relay endpoint)" "missing" "configured"
+  # ANTHROPIC_BASE_URL is only needed for relay mode; only flag if AUTH_TOKEN is present
+  if echo "$secrets" | grep -qx "ANTHROPIC_AUTH_TOKEN" && ! echo "$secrets" | grep -qx "ANTHROPIC_BASE_URL"; then
+    add_finding "secret_base_url_missing" "workflow" "ANTHROPIC_BASE_URL secret is not configured (required if using a custom relay endpoint)" "missing" "configured"
   fi
 }
 
@@ -345,9 +344,10 @@ apply_workflows() {
 
   mkdir -p "$repo_root/.github/workflows"
   local created=0
+  local existing=0
 
   if [ ! -f "$repo_root/.github/workflows/claude.yml" ]; then
-    cat > "$repo_root/.github/workflows/claude.yml" <<'WFEOF'
+    cat > "$repo_root/.github/workflows/claude.yml" <<'CLAUDE_WF_EOF'
 name: Claude Code
 
 on:
@@ -384,17 +384,20 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         env:
-          ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
         with:
-          anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           additional_permissions: |
             actions: read
-WFEOF
+CLAUDE_WF_EOF
+    # Back in if-block scope after heredoc
     created=$((created + 1))
+  else
+    existing=$((existing + 1))
   fi
 
   if [ ! -f "$repo_root/.github/workflows/claude-code-review.yml" ]; then
-    cat > "$repo_root/.github/workflows/claude-code-review.yml" <<'WFEOF'
+    cat > "$repo_root/.github/workflows/claude-code-review.yml" <<'REVIEW_WF_EOF'
 name: Claude Code Review
 
 on:
@@ -475,8 +478,8 @@ jobs:
 
       - name: Verify API connectivity
         env:
-          ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_AUTH_TOKEN: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         run: |
           set +e
           echo "BASE_URL prefix: ${ANTHROPIC_BASE_URL:0:10}..."
@@ -492,26 +495,32 @@ jobs:
         id: claude-review
         uses: anthropics/claude-code-action@v1
         env:
-          ANTHROPIC_BASE_URL: \${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
         with:
-          anthropic_api_key: \${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
           plugins: 'code-review@claude-plugins-official'
           prompt: |
-            REPO: \${{ github.repository }}
-            PR NUMBER: \${{ github.event.pull_request.number }}
-            \${{ steps.prepare-review.outputs.context }}
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            ${{ steps.prepare-review.outputs.context }}
             Run /code-review --comment
           claude_args: '--allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"'
           show_full_output: true
           additional_permissions: |
             actions: read
-WFEOF
+REVIEW_WF_EOF
+    # Back in if-block scope after heredoc
     created=$((created + 1))
+  else
+    existing=$((existing + 1))
   fi
 
   if [ "$created" -gt 0 ]; then
     add_action "Created ${created} Claude Code workflow file(s) in .github/workflows/ (commit and push to activate)"
+  fi
+  if [ "$existing" -gt 0 ] && [ "$created" -eq 0 ]; then
+    add_action "All Claude Code workflow files already exist in .github/workflows/ (${existing} file(s))"
   fi
 }
 
@@ -523,7 +532,7 @@ apply_labels
 apply_workflows
 
 # Manual steps that cannot be automated via API
-MANUAL_STEPS='"Install Claude GitHub App: https://github.com/apps/claude (or run /install-github-app in Claude Code)","Add ANTHROPIC_API_KEY to repository secrets (Settings > Secrets > Actions) if not already configured","Add ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN to repository secrets if using a custom API endpoint or relay service (e.g. Backgrace)","Commit and push .github/workflows/ files to activate Claude Code review automation","Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
+MANUAL_STEPS='"Install Claude GitHub App: https://github.com/apps/claude (or run /install-github-app in Claude Code)","Add ANTHROPIC_AUTH_TOKEN to repository secrets (Settings > Secrets > Actions) — required for Claude Code GitHub Actions","Add ANTHROPIC_BASE_URL to repository secrets if using a custom relay endpoint","Commit and push .github/workflows/ files to activate Claude Code review automation","Enable merge queue in GitHub Settings > Branches > integration rule (requires GitHub repo settings UI)","Add required status checks (ci/tests, ci/lint, ci/build) in branch protection after CI is configured","Create CODEOWNERS file for code review routing"'
 
 # Output
 if [ "$ERROR_COUNT" -eq 0 ]; then

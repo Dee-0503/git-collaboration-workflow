@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-repo-status.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-repo-status.sh\"",
             "timeout": 10
           }
         ]
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/scan-conflict-markers.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/scan-conflict-markers.sh\"",
             "timeout": 10
           },
           {
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-commit-msg.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/validate-commit-msg.sh\"",
             "timeout": 5
           },
           {
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-branch-name.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/validate-branch-name.sh\"",
             "timeout": 5
           },
           {
@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/scan-secrets.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/scan-secrets.sh\"",
             "timeout": 15
           },
           {
@@ -113,7 +113,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-merge-cleanup.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/post-merge-cleanup.sh\"",
             "timeout": 10
           }
         ]

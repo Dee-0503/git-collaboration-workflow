@@ -4,8 +4,16 @@
 # Input: tool_input JSON on stdin (contains the command that was executed)
 set -euo pipefail
 
-# Read tool input from stdin
-INPUT=$(cat)
+# Read tool input from stdin with timeout to avoid blocking
+INPUT=$(timeout 2 cat 2>/dev/null || echo "")
+if [ -z "$INPUT" ]; then
+  exit 0
+fi
+
+# Quick pre-check: skip python3 if input doesn't mention merge
+if ! printf '%s' "$INPUT" | grep -q 'merge'; then
+  exit 0
+fi
 
 # Extract the command that was executed
 COMMAND=$(printf '%s' "$INPUT" | python3 -c "
@@ -41,7 +49,8 @@ fi
 CLEANUP_ITEMS=""
 CLEANUP_COUNT=0
 
-if git ls-remote --heads origin "$MERGED_BRANCH" 2>/dev/null | grep -q "$MERGED_BRANCH"; then
+# Use --exit-code for reliable remote branch detection
+if git ls-remote --exit-code --heads origin "$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"remote branch 'origin/${MERGED_BRANCH}' (git push origin --delete ${MERGED_BRANCH})\","
 fi
@@ -51,7 +60,8 @@ if git rev-parse --verify "$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"local branch '${MERGED_BRANCH}' (git branch -d ${MERGED_BRANCH})\","
 fi
 
-WORKTREE_PATH=$(git worktree list 2>/dev/null | grep "$MERGED_BRANCH" | awk '{print $1}')
+# Match branch name in brackets for exact worktree detection
+WORKTREE_PATH=$(git worktree list 2>/dev/null | grep "\[$MERGED_BRANCH\]" | awk '{print $1}')
 if [ -n "$WORKTREE_PATH" ]; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})\","
