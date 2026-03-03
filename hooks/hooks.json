@@ -1,5 +1,5 @@
 {
-  "description": "Git Collaboration Architecture — 3 prompt-only + 4 hybrid (command+prompt) PreToolUse guards + 1 PostToolUse advisory + 1 SessionStart status check",
+  "description": "Git Collaboration Architecture — 3 prompt-only + 4 hybrid (command+prompt) PreToolUse guards + 2 PostToolUse (1 advisory + 1 cleanup) + 1 SessionStart status check",
   "hooks": {
     "SessionStart": [
       {
@@ -105,6 +105,16 @@
           {
             "type": "prompt",
             "prompt": "You are the **pr-scope-check** hook.\n\nExamine the result of the Bash command that just executed. Only act on `git diff --stat` or `git diff --name-only` commands.\n\n## Rules\n\n1. If the command was `git diff --stat` or `git diff --name-only` (or variants with additional flags), count the number of changed files in the output.\n\n2. If the file count exceeds **20**, provide a warning in systemMessage:\n   - \"⚠️ PR Scope Warning: This change touches [N] files (threshold: 20). Consider splitting into smaller, focused PRs for easier review and reduced merge conflict risk.\"\n\n3. If the file count is 20 or fewer, do nothing (no message needed).\n\n4. This hook is advisory only — it never blocks, only warns. Always allow the result to proceed.\n\nReturn: always allow. Use systemMessage for warnings only."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-merge-cleanup.sh",
+            "timeout": 10
           }
         ]
       }
