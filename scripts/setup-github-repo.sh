@@ -423,53 +423,41 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Prepare re-review context
-        id: prepare-review
+      - name: Collect previous review findings
+        id: prev-review
         if: github.event.action == 'synchronize'
         run: |
           PR=${{ github.event.pull_request.number }}
           REPO=${{ github.repository }}
 
-          COMMENTS_JSON=$(gh api "repos/$REPO/pulls/$PR/comments" \
-            --jq '[.[] | select(.user.login == "claude[bot]") | {id, path, line, body}]' 2>/dev/null || echo "[]")
-          COUNT=$(echo "$COMMENTS_JSON" | jq 'length')
+          INLINE_JSON=$(gh api "repos/$REPO/pulls/$PR/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]") | {path, line, body: (.body | split("\n")[0] | .[0:200])}]' \
+            2>/dev/null || echo "[]")
+          INLINE_COUNT=$(echo "$INLINE_JSON" | jq 'length')
 
-          if [ "$COUNT" -gt 0 ]; then
-            echo "::notice::Found $COUNT previous review comment(s), archiving for re-review"
-
-            ARCHIVE_BODY="<details>"$'\n'
-            ARCHIVE_BODY+="<summary>Review Round Archive — ${COUNT} finding(s) ($(date -u +%Y-%m-%d))</summary>"$'\n\n'
-            ARCHIVE_BODY+="| # | File | Line | Finding |"$'\n'
-            ARCHIVE_BODY+="|---|------|------|---------|"$'\n'
-
+          if [ "$INLINE_COUNT" -gt 0 ]; then
             FINDINGS=""
-            for i in $(seq 0 $((COUNT - 1))); do
-              FILE=$(echo "$COMMENTS_JSON" | jq -r ".[$i].path")
-              LINE=$(echo "$COMMENTS_JSON" | jq -r ".[$i].line // \"N/A\"")
-              BODY=$(echo "$COMMENTS_JSON" | jq -r ".[$i].body" | head -1 | cut -c1-120 | sed 's/|/\\|/g')
+            for i in $(seq 0 $((INLINE_COUNT - 1))); do
+              FILE=$(echo "$INLINE_JSON" | jq -r ".[$i].path")
+              LINE=$(echo "$INLINE_JSON" | jq -r ".[$i].line // \"N/A\"")
+              BODY=$(echo "$INLINE_JSON" | jq -r ".[$i].body" | head -1 | cut -c1-150)
               N=$((i + 1))
-              ARCHIVE_BODY+="| $N | \`$FILE\` | L$LINE | $BODY |"$'\n'
-              FINDINGS+="$N. $FILE:$LINE - $BODY"$'\n'
-            done
-
-            ARCHIVE_BODY+=$'\n'"</details>"
-            echo "$ARCHIVE_BODY" | gh pr comment "$PR" --body-file -
-
-            echo "$COMMENTS_JSON" | jq -r '.[].id' | while read comment_id; do
-              gh api "repos/$REPO/pulls/comments/$comment_id" -X DELETE 2>/dev/null || true
+              FINDINGS+="$N. $FILE:L$LINE — $BODY"$'\n'
             done
 
             {
               echo "context<<CONTEXT_EOF"
               echo ""
-              echo "RE-REVIEW CONTEXT: This PR was updated with new commits. The previous review found the following issues. For each finding, verify whether it was addressed in the new code. Flag any unresolved issues and review new changes for additional problems:"
+              echo "PREVIOUS REVIEW FINDINGS ($INLINE_COUNT issue(s) from prior round):"
               echo "$FINDINGS"
+              echo "For each previous finding above, verify whether it was addressed in the new commits."
+              echo "Report status: [RESOLVED] if fixed, [STILL OPEN] if not, [PARTIALLY FIXED] if partially addressed."
               echo "CONTEXT_EOF"
             } >> "$GITHUB_OUTPUT"
           fi
 
           gh api "repos/$REPO/issues/$PR/comments" \
-            --jq '.[] | select(.body | test("### Code review")) | select(.user.login | test("github-actions|claude")) | .id' 2>/dev/null \
+            --jq '.[] | select(.body | test("### Code Review")) | select(.user.login | test("github-actions|claude")) | .id' 2>/dev/null \
           | while read comment_id; do
               gh api "repos/$REPO/issues/comments/$comment_id" -X DELETE 2>/dev/null || true
             done
@@ -482,7 +470,6 @@ jobs:
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         run: |
           set +e
-          echo "BASE_URL prefix: ${ANTHROPIC_BASE_URL:0:10}..."
           curl -s --connect-timeout 10 --max-time 15 \
             -X POST "${ANTHROPIC_BASE_URL}/v1/messages" \
             -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
@@ -498,14 +485,31 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
-          plugins: 'code-review@claude-plugins-official'
           prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-            ${{ steps.prepare-review.outputs.context }}
-            Run /code-review --comment
-          claude_args: '--allowedTools "Skill,Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*),mcp__github_inline_comment__create_inline_comment"'
+            You are a senior code reviewer. Perform a thorough review of PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            ${{ steps.prev-review.outputs.context }}
+
+            ## Review Pipeline
+
+            ### Step 1: Gather Context
+            Run: `gh pr diff ${{ github.event.pull_request.number }}` and `gh pr view ${{ github.event.pull_request.number }} --json title,body,files`
+            Find all CLAUDE.md files relevant to modified directories.
+
+            ### Step 2: Parallel Review (5 agents)
+            Use Agent tool to launch 5 parallel agents reviewing the full diff:
+            1. CLAUDE.md Compliance
+            2. Bug Detection (shallow, diff-only)
+            3. Historical Context (git blame/log)
+            4. Security & Performance
+            5. Code Quality & Patterns
+
+            ### Step 3: Confidence Scoring (0-100, threshold 80)
+            Discard false positives: pre-existing issues, linter-catchable, nitpicks, intentional changes.
+
+            ### Step 4: Post via `gh pr comment` with format: "### Code Review\n\nFound N issue(s):\n1. description (category)\n   permalink"
+            If previous findings provided, add "### Previous Findings Status" section.
+          claude_args: '--allowedTools "Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*)"'
           show_full_output: true
           additional_permissions: |
             actions: read
