@@ -190,10 +190,9 @@ check_api_secret() {
   if ! echo "$secrets" | grep -qx "ANTHROPIC_AUTH_TOKEN"; then
     add_finding "secret_auth_token_missing" "workflow" "ANTHROPIC_AUTH_TOKEN secret is not configured (required for Claude Code GitHub Actions)" "missing" "configured"
   fi
-  # ANTHROPIC_BASE_URL is only needed for relay mode; only flag if AUTH_TOKEN is present
-  if echo "$secrets" | grep -qx "ANTHROPIC_AUTH_TOKEN" && ! echo "$secrets" | grep -qx "ANTHROPIC_BASE_URL"; then
-    add_finding "secret_base_url_missing" "workflow" "ANTHROPIC_BASE_URL secret is not configured (required if using a custom relay endpoint)" "missing" "configured"
-  fi
+  # ANTHROPIC_BASE_URL is only needed for relay/proxy deployments.
+  # Do NOT flag its absence — most users connect directly to the Anthropic API
+  # and would see a false positive here, creating alert fatigue.
 }
 
 check_labels() {

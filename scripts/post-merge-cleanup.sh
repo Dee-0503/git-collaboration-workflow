@@ -58,7 +58,8 @@ if git rev-parse --verify "$MERGED_BRANCH" >/dev/null 2>&1; then
 fi
 
 # Match branch name in brackets for exact worktree detection
-WORKTREE_PATH=$(git worktree list 2>/dev/null | grep "\[$MERGED_BRANCH\]" | awk '{print $1}')
+# Use grep -F for literal string matching (branch names may contain regex metacharacters like . * +)
+WORKTREE_PATH=$(git worktree list 2>/dev/null | grep -F "[$MERGED_BRANCH]" | awk '{print $1}')
 if [ -n "$WORKTREE_PATH" ]; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})\","

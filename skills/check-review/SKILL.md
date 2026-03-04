@@ -101,10 +101,24 @@ If user chooses to start review-watcher:
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" update <pr_number> "pending_review" <comment_count>
    ```
 
-2. Use the Agent tool to spawn a `review-watcher` teammate:
-   - subagent_type: `git-collaboration-workflow:review-watcher`
-   - prompt: "Monitor PR #<number> on branch <branch>. Poll review status and handle fixes."
-   - run_in_background: true
+2. Create a team and spawn the review-watcher as a teammate:
+
+   a. Create a team (if not already active):
+      ```
+      TeamCreate: team_name = "pr-<pr_number>-review"
+      ```
+
+   b. Create a task for the teammate:
+      ```
+      TaskCreate: subject = "Monitor PR #<pr_number> cloud review"
+                  description = "Poll review status, auto-fix code-level issues, SendMessage logic-level issues"
+      ```
+
+   c. Spawn the review-watcher teammate via Agent tool:
+      - subagent_type: `git-collaboration-workflow:review-watcher`
+      - name: `review-watcher`
+      - team_name: `pr-<pr_number>-review`
+      - prompt: "Monitor PR #<pr_number> on branch <branch>. Poll review status and handle fixes. SendMessage findings to team lead."
 
 ## Error Handling
 

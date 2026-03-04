@@ -114,11 +114,29 @@ Offer to start automated review monitoring:
 I can spawn a review-watcher teammate to monitor the review and auto-fix code-level issues.
 You can continue working on other tasks while it monitors."
 
-If user agrees, use the Agent tool to spawn the review-watcher:
-- subagent_type: `git-collaboration-workflow:review-watcher`
-- name: `review-watcher`
-- prompt: "Monitor PR #<number> on branch <branch>. Poll review status every 60 seconds. When review completes, fetch comments, auto-fix code-level issues, and SendMessage logic-level issues to the main controller."
-- run_in_background: true
+If user agrees, create a team and spawn the review-watcher as a teammate:
+
+1. Create a team:
+   ```
+   TeamCreate: team_name = "pr-<number>-review"
+   ```
+
+2. Create a task for the teammate:
+   ```
+   TaskCreate: subject = "Monitor PR #<number> cloud review"
+               description = "Poll review status, auto-fix code-level issues, SendMessage logic-level issues"
+   ```
+
+3. Spawn the review-watcher teammate via Agent tool:
+   - subagent_type: `git-collaboration-workflow:review-watcher`
+   - name: `review-watcher`
+   - team_name: `pr-<number>-review`
+   - prompt: "Monitor PR #<number> on branch <branch>. Poll review status every 60 seconds. When review completes, fetch comments, auto-fix code-level issues, and SendMessage logic-level issues to the team lead."
+
+The teammate will use SendMessage to notify you when:
+- Review completes (pass or findings)
+- Code-level issues are auto-fixed and pushed
+- Logic-level issues need your decision
 
 Inform the user:
 - "review-watcher teammate spawned. It will notify you when the review completes."
