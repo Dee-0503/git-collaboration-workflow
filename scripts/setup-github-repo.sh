@@ -444,14 +444,15 @@ jobs:
               FINDINGS+="$N. $FILE:L$LINE — $BODY"$'\n'
             done
 
+            DELIM="CONTEXT_$(openssl rand -hex 8)"
             {
-              echo "context<<CONTEXT_EOF"
+              echo "context<<${DELIM}"
               echo ""
               echo "PREVIOUS REVIEW FINDINGS ($INLINE_COUNT issue(s) from prior round):"
               echo "$FINDINGS"
               echo "For each previous finding above, verify whether it was addressed in the new commits."
               echo "Report status: [RESOLVED] if fixed, [STILL OPEN] if not, [PARTIALLY FIXED] if partially addressed."
-              echo "CONTEXT_EOF"
+              echo "${DELIM}"
             } >> "$GITHUB_OUTPUT"
           fi
 

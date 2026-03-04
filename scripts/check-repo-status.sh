@@ -62,8 +62,10 @@ if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "integration" ] && [ "$BRANCH" != "
 fi
 
 # 5.5. Check for pending review comments in tracker DB
+# Fast path: skip python3 chain entirely if tracker DB file doesn't exist
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
-if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/review-tracker.sh" ]; then
+TRACKER_DB="${REPO_ROOT:+${REPO_ROOT}/.claude/review-tracker.json}"
+if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/review-tracker.sh" ] && [ -n "$TRACKER_DB" ] && [ -f "$TRACKER_DB" ]; then
   TRACKER_OUTPUT=$(bash "$PLUGIN_ROOT/scripts/review-tracker.sh" list 2>/dev/null || echo "")
   if [ -n "$TRACKER_OUTPUT" ]; then
     ACTIVE_COUNT=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('active',0))" 2>/dev/null || echo "0")

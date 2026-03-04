@@ -4,7 +4,7 @@
 # Input: tool_input JSON on stdin (contains the command that was executed)
 #
 # NOTE: The hooks API only supports tool-name-level matching ("Bash"), so this
-# script is invoked for every Bash command. The grep pre-check on line ~14
+# script is invoked for every Bash command. The grep pre-check on line ~18
 # ensures a fast exit (<5ms) for non-merge commands, keeping overhead minimal.
 set -uo pipefail
 
@@ -31,8 +31,12 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
   exit 0
 fi
 
-# Extract PR number and verify merge completed
+# Extract PR number — explicit (gh pr merge 42) or inferred from current branch
 MERGED_PR=$(echo "$COMMAND" | grep -oE 'gh pr merge[[:space:]]+([0-9]+)' | grep -oE '[0-9]+' | head -1)
+if [ -z "$MERGED_PR" ]; then
+  # No explicit number: gh pr merge --squash (infers current branch)
+  MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
+fi
 if [ -z "$MERGED_PR" ]; then
   exit 0
 fi
@@ -77,5 +81,7 @@ if [ -n "$MERGED_PR" ]; then
   bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || true
 fi
 
-printf '{"systemMessage":"PR #%s merged successfully. Branch '\''%s'\'' can be cleaned up. Found %d item(s) to clean: [%s]. RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup."}\n' \
-  "$MERGED_PR" "$MERGED_BRANCH" "$CLEANUP_COUNT" "$CLEANUP_ITEMS"
+# Build JSON output safely via jq to prevent branch-name injection
+jq -n --arg pr "$MERGED_PR" --arg branch "$MERGED_BRANCH" \
+      --argjson count "$CLEANUP_COUNT" --arg items "$CLEANUP_ITEMS" \
+  '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: [" + $items + "]. RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}'
