@@ -79,7 +79,7 @@ jobs:
             -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}}' \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' \
             -o /dev/null -w "HTTP %{http_code}" && echo " OK" || echo "::warning::API connectivity check failed, proceeding anyway"
 
       - name: Run Claude Code Review
