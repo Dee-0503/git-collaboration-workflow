@@ -2,7 +2,11 @@
 # post-merge-cleanup.sh — Detect completed merge and suggest branch cleanup
 # Called as PostToolUse hook on Bash commands
 # Input: tool_input JSON on stdin (contains the command that was executed)
-set -euo pipefail
+#
+# NOTE: The hooks API only supports tool-name-level matching ("Bash"), so this
+# script is invoked for every Bash command. The grep pre-check on line ~14
+# ensures a fast exit (<5ms) for non-merge commands, keeping overhead minimal.
+set -uo pipefail
 
 # Read tool input from stdin with timeout to avoid blocking
 INPUT=$(timeout 2 cat 2>/dev/null || echo "")
@@ -10,8 +14,8 @@ if [ -z "$INPUT" ]; then
   exit 0
 fi
 
-# Quick pre-check: skip python3 if input doesn't mention merge
-if ! printf '%s' "$INPUT" | grep -q 'merge'; then
+# Quick pre-check: skip python3 if input doesn't mention gh pr merge
+if ! printf '%s' "$INPUT" | grep -q 'gh pr merge'; then
   exit 0
 fi
 
@@ -22,27 +26,20 @@ data = json.load(sys.stdin)
 print(data.get('command', data.get('input', {}).get('command', '')))
 " 2>/dev/null || echo "")
 
-# Only act on merge-related commands
-if ! echo "$COMMAND" | grep -qE '(gh pr merge|git merge)'; then
+# Only act on gh pr merge commands (git merge is out of scope — no PR context available)
+if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
   exit 0
 fi
 
-# Check if a PR was just merged
-MERGED_BRANCH=""
-MERGED_PR=""
-
-if echo "$COMMAND" | grep -q 'gh pr merge'; then
-  MERGED_PR=$(echo "$COMMAND" | grep -oE 'gh pr merge[[:space:]]+([0-9]+)' | grep -oE '[0-9]+' | head -1)
-  if [ -n "$MERGED_PR" ]; then
-    MERGED_BRANCH=$(gh pr view "$MERGED_PR" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-    MERGE_STATE=$(gh pr view "$MERGED_PR" --json state --jq '.state' 2>/dev/null || echo "")
-    if [ "$MERGE_STATE" != "MERGED" ]; then
-      exit 0
-    fi
-  fi
+# Extract PR number and verify merge completed
+MERGED_PR=$(echo "$COMMAND" | grep -oE 'gh pr merge[[:space:]]+([0-9]+)' | grep -oE '[0-9]+' | head -1)
+if [ -z "$MERGED_PR" ]; then
+  exit 0
 fi
 
-if [ -z "$MERGED_BRANCH" ]; then
+MERGED_BRANCH=$(gh pr view "$MERGED_PR" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+MERGE_STATE=$(gh pr view "$MERGED_PR" --json state --jq '.state' 2>/dev/null || echo "")
+if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
 fi
 

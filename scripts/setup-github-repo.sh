@@ -523,8 +523,8 @@ REVIEW_WF_EOF
   if [ "$created" -gt 0 ]; then
     add_action "Created ${created} Claude Code workflow file(s) in .github/workflows/ (commit and push to activate)"
   fi
-  if [ "$existing" -gt 0 ] && [ "$created" -eq 0 ]; then
-    add_action "All Claude Code workflow files already exist in .github/workflows/ (${existing} file(s))"
+  if [ "$existing" -gt 0 ]; then
+    add_action "${existing} Claude Code workflow file(s) already exist in .github/workflows/"
   fi
 }
 
