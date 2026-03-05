@@ -76,7 +76,7 @@ When the review check completes (SUCCESS, FAILURE, NEUTRAL, ERROR):
 1. Fetch inline comments:
    ```bash
    OWNER_REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-   gh api "repos/$OWNER_REPO/pulls/<PR_NUMBER>/comments" --jq '.[] | {path, line, body}'
+   gh api --paginate "repos/$OWNER_REPO/pulls/<PR_NUMBER>/comments" --jq '.[] | {path, line, body}'
    ```
 
 2. Fetch review-level comments:

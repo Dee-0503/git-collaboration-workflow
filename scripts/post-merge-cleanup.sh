@@ -41,8 +41,13 @@ if [ -z "$MERGED_PR" ]; then
   exit 0
 fi
 
-MERGED_BRANCH=$(gh pr view "$MERGED_PR" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-MERGE_STATE=$(gh pr view "$MERGED_PR" --json state --jq '.state' 2>/dev/null || echo "")
+PR_DATA=$(gh pr view "$MERGED_PR" --json headRefName,state --jq '.headRefName + " " + .state' 2>/dev/null || echo "")
+MERGED_BRANCH=""
+MERGE_STATE=""
+if [ -n "$PR_DATA" ]; then
+  MERGED_BRANCH=$(echo "$PR_DATA" | awk '{print $1}')
+  MERGE_STATE=$(echo "$PR_DATA" | awk '{print $2}')
+fi
 if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
 fi
@@ -56,7 +61,7 @@ if git ls-remote --exit-code --heads origin "$MERGED_BRANCH" >/dev/null 2>&1; th
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"remote branch 'origin/${MERGED_BRANCH}' (git push origin --delete ${MERGED_BRANCH})\","
 fi
 
-if git rev-parse --verify "$MERGED_BRANCH" >/dev/null 2>&1; then
+if git rev-parse --verify "refs/heads/$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS="${CLEANUP_ITEMS}\"local branch '${MERGED_BRANCH}' (git branch -d ${MERGED_BRANCH})\","
 fi

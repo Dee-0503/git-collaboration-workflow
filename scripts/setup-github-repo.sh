@@ -426,23 +426,16 @@ jobs:
         id: prev-review
         if: github.event.action == 'synchronize'
         run: |
-          PR=${{ github.event.pull_request.number }}
-          REPO=${{ github.repository }}
+          PR="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
 
-          INLINE_JSON=$(gh api "repos/$REPO/pulls/$PR/comments" \
+          INLINE_JSON=$(gh api --paginate "repos/$REPO/pulls/$PR/comments" \
             --jq '[.[] | select(.user.login == "claude[bot]") | {path, line, body: (.body | split("\n")[0] | .[0:200])}]' \
             2>/dev/null || echo "[]")
           INLINE_COUNT=$(echo "$INLINE_JSON" | jq 'length')
 
           if [ "$INLINE_COUNT" -gt 0 ]; then
-            FINDINGS=""
-            for i in $(seq 0 $((INLINE_COUNT - 1))); do
-              FILE=$(echo "$INLINE_JSON" | jq -r ".[$i].path")
-              LINE=$(echo "$INLINE_JSON" | jq -r ".[$i].line // \"N/A\"")
-              BODY=$(echo "$INLINE_JSON" | jq -r ".[$i].body" | head -1 | cut -c1-150)
-              N=$((i + 1))
-              FINDINGS+="$N. $FILE:L$LINE — $BODY"$'\n'
-            done
+            FINDINGS=$(echo "$INLINE_JSON" | jq -r '[.[] | "\(.path):L\(.line // "N/A") — \(.body | .[0:150])"] | to_entries[] | "\(.key + 1). \(.value)"')
 
             DELIM="CONTEXT_$(openssl rand -hex 8)"
             {
@@ -456,7 +449,7 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-          gh api "repos/$REPO/issues/$PR/comments" \
+          gh api --paginate "repos/$REPO/issues/$PR/comments" \
             --jq '.[] | select(.body | test("### Code Review")) | select(.user.login | test("github-actions|claude")) | .id' 2>/dev/null \
           | while read comment_id; do
               gh api "repos/$REPO/issues/comments/$comment_id" -X DELETE 2>/dev/null || true
@@ -470,8 +463,9 @@ jobs:
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
         run: |
           set +e
+          EFFECTIVE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
           curl -s --connect-timeout 10 --max-time 15 \
-            -X POST "${ANTHROPIC_BASE_URL}/v1/messages" \
+            -X POST "${EFFECTIVE_URL}/v1/messages" \
             -H "x-api-key: ${ANTHROPIC_AUTH_TOKEN}" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
@@ -507,7 +501,11 @@ jobs:
             ### Step 3: Confidence Scoring (0-100, threshold 80)
             Discard false positives: pre-existing issues, linter-catchable, nitpicks, intentional changes.
 
-            ### Step 4: Post via single `gh pr comment` command (NEVER chain with && or use variable assignments before gh commands).
+            ### Step 4: Post Results
+            For each finding with a specific file and line, post an inline review comment using:
+            `gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body='...' -F path='file.ext' -F line=N -F commit_id='FULL_SHA'`
+
+            Then post a summary via single `gh pr comment` command (NEVER chain with && or use variable assignments before gh commands).
             The Bash tool only allows commands starting with `gh`, `git`, `cat`, `head`, `wc`, `find`, or `ls`.
             If previous findings provided, add "### Previous Findings Status" section.
           claude_args: '--allowedTools "Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*)"'

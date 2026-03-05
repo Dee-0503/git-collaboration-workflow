@@ -41,11 +41,13 @@ case "$ACTION" in
 
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" BRANCH="$BRANCH" NOW="$(now_utc)" \
     python3 -c "
-import json, os
+import json, os, fcntl
 db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 branch = os.environ['BRANCH']
 now = os.environ['NOW']
+lock_fd = open(db_file + '.lock', 'w')
+fcntl.flock(lock_fd, fcntl.LOCK_EX)
 with open(db_file, 'r') as f:
     db = json.load(f)
 db['prs'][pr_num] = {
@@ -59,6 +61,8 @@ db['prs'][pr_num] = {
 }
 with open(db_file, 'w') as f:
     json.dump(db, f, indent=2)
+fcntl.flock(lock_fd, fcntl.LOCK_UN)
+lock_fd.close()
 print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': 'pending_review'}))
 "
     ;;
@@ -88,12 +92,14 @@ else:
     ensure_db
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" NEW_STATUS="$NEW_STATUS" \
     UPDATED_AT="$(now_utc)" COMMENTS="$COMMENTS" python3 -c "
-import json, os, sys
+import json, os, sys, fcntl
 db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 new_status = os.environ['NEW_STATUS']
 updated_at = os.environ['UPDATED_AT']
 comments = int(os.environ['COMMENTS'])
+lock_fd = open(db_file + '.lock', 'w')
+fcntl.flock(lock_fd, fcntl.LOCK_EX)
 with open(db_file, 'r') as f:
     db = json.load(f)
 pr = db['prs'].get(pr_num)
@@ -107,8 +113,12 @@ if pr:
         pr['round'] = pr.get('round', 1) + 1
     with open(db_file, 'w') as f:
         json.dump(db, f, indent=2)
+    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    lock_fd.close()
     print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': new_status}))
 else:
+    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    lock_fd.close()
     print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
     sys.exit(1)
 "
@@ -129,8 +139,10 @@ print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active)
   cleanup)
     ensure_db
     DB_FILE="$DB_FILE" python3 -c "
-import json, os
+import json, os, fcntl
 db_file = os.environ['DB_FILE']
+lock_fd = open(db_file + '.lock', 'w')
+fcntl.flock(lock_fd, fcntl.LOCK_EX)
 with open(db_file, 'r') as f:
     db = json.load(f)
 removed = [k for k, v in db['prs'].items() if v['status'] in ('passed', 'closed')]
@@ -138,6 +150,8 @@ for k in removed:
     del db['prs'][k]
 with open(db_file, 'w') as f:
     json.dump(db, f, indent=2)
+fcntl.flock(lock_fd, fcntl.LOCK_UN)
+lock_fd.close()
 print(json.dumps({'status': 'ok', 'removed': len(removed), 'remaining': len(db['prs'])}))
 "
     ;;
