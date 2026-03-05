@@ -508,6 +508,7 @@ jobs:
             Discard false positives: pre-existing issues, linter-catchable, nitpicks, intentional changes.
 
             ### Step 4: Post via single `gh pr comment` command (NEVER chain with && or use variable assignments before gh commands).
+            The Bash tool only allows commands starting with `gh`, `git`, `cat`, `head`, `wc`, `find`, or `ls`.
             If previous findings provided, add "### Previous Findings Status" section.
           claude_args: '--allowedTools "Agent,Read,Glob,Grep,Bash(gh:*),Bash(git blame:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(find:*),Bash(ls:*)"'
           show_full_output: true

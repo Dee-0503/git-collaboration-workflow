@@ -101,8 +101,9 @@ if pr:
     old_status = pr['status']
     pr['status'] = new_status
     pr['updated_at'] = updated_at
+    pr['last_check'] = updated_at
     pr['comments_count'] = comments
-    if new_status == 'pending_review' and old_status != 'pending_review':
+    if new_status == 'pending_review' and old_status == 'fixing':
         pr['round'] = pr.get('round', 1) + 1
     with open(db_file, 'w') as f:
         json.dump(db, f, indent=2)

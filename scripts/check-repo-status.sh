@@ -19,6 +19,7 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 RECS=""
 COUNT=0
 
@@ -113,7 +114,7 @@ fi
 # ─── GitHub configuration marker ──────────────────────────────────
 # Marker tracks verified GitHub config. Written when all checks pass.
 # Re-checked when: marker missing, remote URL changed, or --full flag.
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# REPO_ROOT was computed at script top (line 22)
 MARKER_FILE=""
 SKIP_GITHUB_CHECK=false
 
