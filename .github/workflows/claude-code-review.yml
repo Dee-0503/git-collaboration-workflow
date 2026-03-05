@@ -137,7 +137,9 @@ jobs:
             - Real issues on lines the PR did NOT modify
 
             ### Step 4: Post Results
-            Use `gh pr comment ${{ github.event.pull_request.number }}` to post results.
+            CRITICAL: Use a single `gh pr comment ${{ github.event.pull_request.number }} --body '...'` command to post results.
+            NEVER chain commands with && or ; or use variable assignments before gh commands.
+            The Bash tool only allows commands starting with `gh`, `git`, `cat`, `head`, `wc`, `find`, or `ls`.
 
             Format:
             ```
