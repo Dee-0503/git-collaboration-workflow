@@ -46,9 +46,10 @@ db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 branch = os.environ['BRANCH']
 now = os.environ['NOW']
-lock_fd = open(db_file + '.lock', 'w')
-fcntl.flock(lock_fd, fcntl.LOCK_EX)
+lock_fd = None
 try:
+    lock_fd = open(db_file + '.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
     with open(db_file, 'r') as f:
         db = json.load(f)
     db['prs'][pr_num] = {
@@ -67,8 +68,9 @@ except Exception as e:
     print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
     sys.exit(1)
 finally:
-    fcntl.flock(lock_fd, fcntl.LOCK_UN)
-    lock_fd.close()
+    if lock_fd is not None:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 "
     ;;
 
@@ -76,17 +78,28 @@ finally:
     PR_NUM="${1:?PR number required}"
     ensure_db
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" python3 -c "
-import json, os, sys
+import json, os, sys, fcntl
 db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
-with open(db_file, 'r') as f:
-    db = json.load(f)
-pr = db['prs'].get(pr_num)
-if pr:
-    print(json.dumps({'status': 'ok', 'pr': pr_num, **pr}))
-else:
-    print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
+lock_fd = None
+try:
+    lock_fd = open(db_file + '.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_SH)
+    with open(db_file, 'r') as f:
+        db = json.load(f)
+    pr = db['prs'].get(pr_num)
+    if pr:
+        print(json.dumps({'status': 'ok', 'pr': pr_num, **pr}))
+    else:
+        print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
+        sys.exit(1)
+except Exception as e:
+    print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
     sys.exit(1)
+finally:
+    if lock_fd is not None:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 "
     ;;
 
@@ -103,9 +116,10 @@ pr_num = os.environ['PR_NUM']
 new_status = os.environ['NEW_STATUS']
 updated_at = os.environ['UPDATED_AT']
 comments = int(os.environ['COMMENTS'])
-lock_fd = open(db_file + '.lock', 'w')
-fcntl.flock(lock_fd, fcntl.LOCK_EX)
+lock_fd = None
 try:
+    lock_fd = open(db_file + '.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
     with open(db_file, 'r') as f:
         db = json.load(f)
     pr = db['prs'].get(pr_num)
@@ -127,20 +141,32 @@ except Exception as e:
     print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
     sys.exit(1)
 finally:
-    fcntl.flock(lock_fd, fcntl.LOCK_UN)
-    lock_fd.close()
+    if lock_fd is not None:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 "
     ;;
 
   list)
     ensure_db
     DB_FILE="$DB_FILE" python3 -c "
-import json, os
+import json, os, sys, fcntl
 db_file = os.environ['DB_FILE']
-with open(db_file, 'r') as f:
-    db = json.load(f)
-active = {k: v for k, v in db['prs'].items() if v['status'] not in ('passed', 'closed')}
-print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active), 'prs': db['prs']}))
+lock_fd = None
+try:
+    lock_fd = open(db_file + '.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_SH)
+    with open(db_file, 'r') as f:
+        db = json.load(f)
+    active = {k: v for k, v in db['prs'].items() if v['status'] not in ('passed', 'closed')}
+    print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active), 'prs': db['prs']}))
+except Exception as e:
+    print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
+    sys.exit(1)
+finally:
+    if lock_fd is not None:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 "
     ;;
 
@@ -149,9 +175,10 @@ print(json.dumps({'status': 'ok', 'total': len(db['prs']), 'active': len(active)
     DB_FILE="$DB_FILE" python3 -c "
 import json, os, sys, fcntl
 db_file = os.environ['DB_FILE']
-lock_fd = open(db_file + '.lock', 'w')
-fcntl.flock(lock_fd, fcntl.LOCK_EX)
+lock_fd = None
 try:
+    lock_fd = open(db_file + '.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
     with open(db_file, 'r') as f:
         db = json.load(f)
     removed = [k for k, v in db['prs'].items() if v['status'] in ('passed', 'closed')]
@@ -164,8 +191,9 @@ except Exception as e:
     print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
     sys.exit(1)
 finally:
-    fcntl.flock(lock_fd, fcntl.LOCK_UN)
-    lock_fd.close()
+    if lock_fd is not None:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 "
     ;;
 

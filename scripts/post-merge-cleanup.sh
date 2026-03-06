@@ -32,7 +32,7 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
 fi
 
 # Extract PR number — explicit (gh pr merge 42) or inferred from current branch
-MERGED_PR=$(echo "$COMMAND" | grep -oE 'gh pr merge[[:space:]]+([0-9]+)' | grep -oE '[0-9]+' | head -1)
+MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | grep -oE '[0-9]+' | head -1)
 if [ -z "$MERGED_PR" ]; then
   # No explicit number: gh pr merge --squash (infers current branch)
   MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
@@ -52,18 +52,18 @@ if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
 fi
 
-CLEANUP_ITEMS=""
+CLEANUP_ITEMS=()
 CLEANUP_COUNT=0
 
 # Use --exit-code for reliable remote branch detection
 if git ls-remote --exit-code --heads origin "$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
-  CLEANUP_ITEMS="${CLEANUP_ITEMS}\"remote branch 'origin/${MERGED_BRANCH}' (git push origin --delete ${MERGED_BRANCH})\","
+  CLEANUP_ITEMS+=("remote branch 'origin/${MERGED_BRANCH}' (git push origin --delete ${MERGED_BRANCH})")
 fi
 
 if git rev-parse --verify "refs/heads/$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
-  CLEANUP_ITEMS="${CLEANUP_ITEMS}\"local branch '${MERGED_BRANCH}' (git branch -d ${MERGED_BRANCH})\","
+  CLEANUP_ITEMS+=("local branch '${MERGED_BRANCH}' (git branch -d ${MERGED_BRANCH})")
 fi
 
 # Match branch name in brackets for exact worktree detection
@@ -71,14 +71,12 @@ fi
 WORKTREE_PATH=$(git worktree list 2>/dev/null | grep -F "[$MERGED_BRANCH]" | awk '{print $1}')
 if [ -n "$WORKTREE_PATH" ]; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
-  CLEANUP_ITEMS="${CLEANUP_ITEMS}\"worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})\","
+  CLEANUP_ITEMS+=("worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})")
 fi
 
 if [ "$CLEANUP_COUNT" -eq 0 ]; then
   exit 0
 fi
-
-CLEANUP_ITEMS="${CLEANUP_ITEMS%,}"
 
 # Update review tracker if applicable
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -86,7 +84,9 @@ if [ -n "$MERGED_PR" ]; then
   bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || true
 fi
 
-# Build JSON output safely via jq to prevent branch-name injection
+# Build JSON output safely via jq — $ARGS.positional creates a proper JSON array
+# preventing branch-name injection and ensuring valid JSON structure
 jq -n --arg pr "$MERGED_PR" --arg branch "$MERGED_BRANCH" \
-      --argjson count "$CLEANUP_COUNT" --arg items "$CLEANUP_ITEMS" \
-  '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: [" + $items + "]. RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}'
+      --argjson count "$CLEANUP_COUNT" \
+  '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: " + ($ARGS.positional | tostring) + ". RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}' \
+  -- "${CLEANUP_ITEMS[@]}"
