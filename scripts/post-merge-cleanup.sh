@@ -20,6 +20,8 @@ if ! printf '%s' "$INPUT" | grep -q 'gh pr merge'; then
 fi
 
 # Extract the command that was executed
+# NOTE: 2>/dev/null || echo "" is intentional — this hook fires on every Bash command,
+# so python3 parse errors must fail silently to avoid disrupting normal operations.
 COMMAND=$(printf '%s' "$INPUT" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -89,4 +91,4 @@ fi
 jq -n --arg pr "$MERGED_PR" --arg branch "$MERGED_BRANCH" \
       --argjson count "$CLEANUP_COUNT" \
   '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: " + ($ARGS.positional | tostring) + ". RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}' \
-  -- "${CLEANUP_ITEMS[@]}"
+  --args "${CLEANUP_ITEMS[@]}"
