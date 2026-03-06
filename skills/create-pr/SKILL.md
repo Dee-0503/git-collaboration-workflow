@@ -114,7 +114,9 @@ Offer to start automated review monitoring:
 I can spawn a review-watcher teammate to monitor the review and auto-fix code-level issues.
 You can continue working on other tasks while it monitors."
 
-If user agrees, create a team and spawn the review-watcher as a teammate:
+If user agrees, create a team and spawn the review-watcher as a teammate
+(TeamCreate, TaskCreate, and Agent are Claude Code built-in tools,
+available in the CLI environment — not part of the Claude Agent SDK):
 
 1. Use the **TeamCreate** tool:
    - team_name: `pr-<number>-review`

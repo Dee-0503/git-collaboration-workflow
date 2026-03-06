@@ -41,7 +41,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" status <pr_number>
 ```
 
 Parse the JSON output. Display:
-- Current status (pending_review / review_done / fixing / passed / closed)
+- Current status (pending_review / fixing / passed / closed)
 - Current round number
 - Last check timestamp
 
@@ -101,7 +101,9 @@ If user chooses to start review-watcher:
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" update <pr_number> "pending_review" <comment_count>
    ```
 
-2. Create a team and spawn the review-watcher as a teammate:
+2. Create a team and spawn the review-watcher as a teammate
+   (TeamCreate, TaskCreate, and Agent are Claude Code built-in tools,
+   available in the CLI environment — not part of the Claude Agent SDK):
 
    a. Use the **TeamCreate** tool:
       - team_name: `pr-<pr_number>-review`

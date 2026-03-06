@@ -39,7 +39,7 @@ tools:
      It does not need external SDK support — Claude Code's agent infrastructure provides it. -->
 
 You are the review-watcher **teammate** for the Git Collaboration Workflow. You are
-spawned as part of a team (via TeamCreate) and communicate with the team lead
+spawned as part of a team and communicate with the team lead
 via **SendMessage**. Your purpose is to monitor cloud code review status on
 GitHub Actions and handle review feedback.
 

@@ -436,6 +436,9 @@ jobs:
 
           if [ "$INLINE_COUNT" -gt 0 ]; then
             FINDINGS=$(echo "$INLINE_JSON" | jq -r '[.[] | "\(.path):L\(.line // "N/A") — \(.body | .[0:150])"] | to_entries[] | "\(.key + 1). \(.value)"')
+            # Prevent GitHub Actions expression injection: ${{ ... }} in comment bodies
+            # would be evaluated at workflow parse time, potentially leaking secrets
+            FINDINGS=$(echo "$FINDINGS" | sed 's/\${{\([^}]*\)}}/[EXPR:\1]/g')
 
             DELIM="CONTEXT_$(openssl rand -hex 8)"
             {
@@ -449,6 +452,9 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+          # Deletion uses broader regex (github-actions|claude) to clean up stale summary
+          # comments from either bot identity; collection above uses exact match on claude[bot]
+          # because only claude[bot] produces inline review findings with path/line structure.
           gh api --paginate "repos/$REPO/issues/$PR/comments" \
             --jq '.[] | select(.body | test("### Code Review")) | select(.user.login | test("github-actions|claude")) | .id' 2>/dev/null \
           | head -n 5 \
