@@ -80,6 +80,8 @@ for num, pr in d.get('prs', {}).items():
         parts.append(f\"PR #{num} ({pr['branch']}): {pr['status']}, round {pr.get('round',1)}\")
 print('; '.join(parts))
 " 2>/dev/null || echo "")
+      # Escape for safe JSON embedding (branch names from tracker DB may contain special chars)
+      ACTIVE_DETAILS=$(printf '%s' "$ACTIVE_DETAILS" | sed 's/\\/\\\\/g; s/"/\\"/g')
       COUNT=$((COUNT + 1))
       RECS="${RECS}${COUNT}. RECOMMEND: Run /check-review to view cloud code review results and optionally spawn a review-watcher teammate. REASON: ${ACTIVE_COUNT} PR(s) have pending review activity: ${ACTIVE_DETAILS}. "
     fi
