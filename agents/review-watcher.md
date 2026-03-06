@@ -33,9 +33,6 @@ tools:
   - Grep
   - Glob
   - SendMessage
-  - TaskUpdate
-  - TaskList
-  - TaskGet
 ---
 
 You are the review-watcher **teammate** for the Git Collaboration Workflow. You are

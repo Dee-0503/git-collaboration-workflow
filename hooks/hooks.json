@@ -110,6 +110,7 @@
       },
       {
         "matcher": "Bash",
+        "description": "Fires on all Bash commands by design — hooks API matcher only supports prefix matching. Script internal grep pre-check ensures only gh-pr-merge commands are processed.",
         "hooks": [
           {
             "type": "command",
