@@ -103,18 +103,14 @@ If user chooses to start review-watcher:
 
 2. Create a team and spawn the review-watcher as a teammate:
 
-   a. Create a team (if not already active):
-      ```
-      TeamCreate: team_name = "pr-<pr_number>-review"
-      ```
+   a. Use the **TeamCreate** tool:
+      - team_name: `pr-<pr_number>-review`
 
-   b. Create a task for the teammate:
-      ```
-      TaskCreate: subject = "Monitor PR #<pr_number> cloud review"
-                  description = "Poll review status, auto-fix code-level issues, SendMessage logic-level issues"
-      ```
+   b. Use the **TaskCreate** tool:
+      - subject: `Monitor PR #<pr_number> cloud review`
+      - description: `Poll review status, auto-fix code-level issues, SendMessage logic-level issues`
 
-   c. Spawn the review-watcher teammate via Agent tool:
+   c. Use the **Agent** tool to spawn the review-watcher teammate:
       - subagent_type: `git-collaboration-workflow:review-watcher`
       - name: `review-watcher`
       - team_name: `pr-<pr_number>-review`

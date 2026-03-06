@@ -198,7 +198,6 @@ finally:
     ;;
 
   *)
-    jq -n --arg action "$ACTION" '{"status":"error","message":("Unknown action: " + $action + ". Use: init, register, status, update, list, cleanup")}' >&2
-    exit 1
+    ACTION="$ACTION" python3 -c "import json,os,sys; print(json.dumps({'status':'error','message':'Unknown action: '+os.environ['ACTION']+'. Use: init, register, status, update, list, cleanup'}),file=sys.stderr); sys.exit(1)"
     ;;
 esac

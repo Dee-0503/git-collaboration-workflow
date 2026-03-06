@@ -85,11 +85,9 @@ if [ "$CLEANUP_COUNT" -eq 0 ]; then
   exit 0
 fi
 
-# Update review tracker if applicable
+# Update review tracker (MERGED_PR is guaranteed non-empty — guarded by exit at line 47-49)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -n "$MERGED_PR" ]; then
-  bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || true
-fi
+bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || true
 
 # Build JSON output safely via jq — $ARGS.positional creates a proper JSON array
 # preventing branch-name injection and ensuring valid JSON structure
