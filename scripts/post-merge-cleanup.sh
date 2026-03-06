@@ -6,6 +6,10 @@
 # NOTE: The hooks API only supports tool-name-level matching ("Bash"), so this
 # script is invoked for every Bash command. The grep pre-check on line ~18
 # ensures a fast exit (<5ms) for non-merge commands, keeping overhead minimal.
+#
+# NOTE: -e is intentionally omitted. This hook must never abort mid-execution —
+# individual command failures (git ls-remote, gh pr view, jq) are handled via
+# explicit exit-code checks and || fallbacks throughout the script.
 set -uo pipefail
 
 # Read tool input from stdin with timeout to avoid blocking
@@ -34,7 +38,8 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
 fi
 
 # Extract PR number — explicit (gh pr merge 42) or inferred from current branch
-MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | grep -oE '[0-9]+' | head -1)
+# Strip --flag=value patterns first to avoid extracting digits from flag values (e.g., --timeout=30)
+MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/--[a-zA-Z_-]*=[^ ]*//g' | grep -oE '[0-9]+' | head -1)
 if [ -z "$MERGED_PR" ]; then
   # No explicit number: gh pr merge --squash (infers current branch)
   MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")

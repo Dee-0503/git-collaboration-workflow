@@ -19,6 +19,8 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+# JSON-safe branch name for embedding in printf-constructed JSON output
+BRANCH_JSON=$(printf '%s' "$BRANCH" | sed 's/\\/\\\\/g; s/"/\\"/g')
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 RECS=""
 COUNT=0
@@ -26,7 +28,7 @@ COUNT=0
 # 1. Check if on a protected branch (main/integration)
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "integration" ]; then
   COUNT=$((COUNT + 1))
-  RECS="${RECS}${COUNT}. RECOMMEND: Create a feature branch via /start-feature before making any changes. REASON: You are on protected branch '${BRANCH}' — direct commits and pushes will be blocked by hooks. "
+  RECS="${RECS}${COUNT}. RECOMMEND: Create a feature branch via /start-feature before making any changes. REASON: You are on protected branch '${BRANCH_JSON}' — direct commits and pushes will be blocked by hooks. "
 fi
 
 # 2. Check for detached HEAD state
@@ -177,10 +179,10 @@ WORKTREE_INFO="worktree_count:${WORKTREE_COUNT},is_worktree:${IS_WORKTREE}"
 # Output
 if [ "$COUNT" -gt 0 ]; then
   if [ -n "$GITHUB_SETUP_NEEDED" ]; then
-    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. CRITICAL SETUP: GitHub repository configuration is incomplete (%s). IMMEDIATELY invoke the /setup-repo skill to check and configure GitHub settings before proceeding with any other work. Present the setup-repo findings and ask for user approval to apply fixes.", "autoInvokeSkill": "setup-repo"}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO" "$GITHUB_SETUP_NEEDED"
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. CRITICAL SETUP: GitHub repository configuration is incomplete (%s). IMMEDIATELY invoke the /setup-repo skill to check and configure GitHub settings before proceeding with any other work. Present the setup-repo findings and ask for user approval to apply fixes.", "autoInvokeSkill": "setup-repo"}\n' "$BRANCH_JSON" "$COUNT" "$RECS" "$WORKTREE_INFO" "$GITHUB_SETUP_NEEDED"
   else
-    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO"
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH_JSON" "$COUNT" "$RECS" "$WORKTREE_INFO"
   fi
 else
-  printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | Status: OK. Worktree: %s. No issues detected. Ready to work."}\n' "$BRANCH" "$WORKTREE_INFO"
+  printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | Status: OK. Worktree: %s. No issues detected. Ready to work."}\n' "$BRANCH_JSON" "$WORKTREE_INFO"
 fi

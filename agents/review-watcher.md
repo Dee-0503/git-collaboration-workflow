@@ -131,8 +131,12 @@ For each review comment, categorize:
 
 ## Shutdown Conditions
 
-<!-- TaskUpdate is auto-injected by Claude Code's team infrastructure alongside SendMessage -->
-- PR merged or closed -> update DB to "closed", SendMessage to team lead, TaskUpdate to mark completed, shut down
-- Review passed (0 comments) -> update DB to "passed", SendMessage to team lead, TaskUpdate to mark completed, shut down
+<!-- SendMessage is the primary notification channel (declared in tools frontmatter).
+     TaskUpdate is auto-injected by Claude Code's team infrastructure when agents are
+     spawned via TeamCreate — it is not listed in tools frontmatter because it requires
+     no explicit declaration. If TaskUpdate is unavailable at runtime, the agent still
+     functions correctly: SendMessage ensures the team lead is always notified. -->
+- PR merged or closed -> update DB to "closed", SendMessage to team lead, mark task completed, shut down
+- Review passed (0 comments) -> update DB to "passed", SendMessage to team lead, mark task completed, shut down
 - Received shutdown_request from team lead -> approve via SendMessage(type: "shutdown_response", approve: true) and shut down
-- Max poll attempts reached (15 rounds) -> SendMessage to team lead "Review still pending after 15 minutes", TaskUpdate to mark completed, shut down
+- Max poll attempts reached (15 rounds) -> SendMessage to team lead "Review still pending after 15 minutes", mark task completed, shut down
