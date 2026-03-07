@@ -72,6 +72,7 @@ if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/review-tracker.sh" ] && [
   TRACKER_OUTPUT=$(bash "$PLUGIN_ROOT/scripts/review-tracker.sh" list 2>/dev/null || echo "")
   if [ -n "$TRACKER_OUTPUT" ]; then
     ACTIVE_COUNT=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('active',0))" 2>/dev/null || echo "0")
+    ACTIVE_COUNT=$(printf '%s' "$ACTIVE_COUNT" | grep -xE '[0-9]+' || echo "0")
     if [ "$ACTIVE_COUNT" -gt 0 ]; then
       ACTIVE_DETAILS=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "
 import json, sys

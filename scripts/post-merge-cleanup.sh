@@ -87,7 +87,7 @@ fi
 
 # Update review tracker (MERGED_PR is guaranteed non-empty — guarded by exit at line 47-49)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || true
+bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || echo "warning: failed to update review-tracker for PR #$MERGED_PR" >&2
 
 # Build JSON output safely via jq — $ARGS.positional creates a proper JSON array
 # preventing branch-name injection and ensuring valid JSON structure

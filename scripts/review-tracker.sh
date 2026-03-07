@@ -115,11 +115,11 @@ db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 new_status = os.environ['NEW_STATUS']
 updated_at = os.environ['UPDATED_AT']
-comments = int(os.environ['COMMENTS'])
 lock_fd = None
 try:
     lock_fd = open(db_file + '.lock', 'w')
     fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    comments = int(os.environ['COMMENTS'])
     with open(db_file, 'r') as f:
         db = json.load(f)
     pr = db['prs'].get(pr_num)
