@@ -437,9 +437,9 @@ jobs:
           if [ "$INLINE_COUNT" -gt 0 ]; then
             FINDINGS=$(echo "$INLINE_JSON" | jq -r '[.[] | "\(.path):L\(.line // "N/A") — \(.body | .[0:150])"] | to_entries[] | "\(.key + 1). \(.value)"')
             # Prevent GitHub Actions expression injection: ${{ ... }} in comment bodies
-            # would be evaluated at workflow parse time, potentially leaking secrets
-            FINDINGS=$(echo "$FINDINGS" | sed 's/\${{\([^}]*\)}}/[EXPR:\1]/g')
-
+            # would be evaluated at workflow parse time, potentially leaking secrets.
+            # Uses ERE mode (-E) so unescaped () form capture groups unambiguously.
+            FINDINGS=$(echo "$FINDINGS" | sed -E 's/\$\{\{([^}]*)\}\}/[EXPR:\1]/g')
             DELIM="CONTEXT_$(openssl rand -hex 8)"
             {
               echo "context<<${DELIM}"

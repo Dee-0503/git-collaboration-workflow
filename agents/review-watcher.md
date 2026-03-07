@@ -118,7 +118,7 @@ For each review comment, categorize:
    "PR #<N> has logic-level review comments that need your decision:
    - File: <path>, Line <N>: <comment body>
    Please review and tell me how to proceed."
-2. Wait for response from team lead before taking action.
+2. Wait for response from team lead before taking action. **Maximum 10 minutes** — if no response received, SendMessage a reminder and shut down, leaving the issue for manual resolution.
 
 ## Safety Rules
 
@@ -142,3 +142,4 @@ For each review comment, categorize:
 - Received shutdown_request from team lead -> approve via SendMessage(type: "shutdown_response", approve: true) and shut down
 - Max poll attempts reached (5 rounds per cycle) -> SendMessage to team lead "Review still pending after 5 minutes", mark task completed, shut down
 - Max fix-and-re-review cycles reached (5 total) -> SendMessage to team lead "Reached 5 fix cycles, human intervention needed", mark task completed, shut down
+- Logic-level wait timeout (10 minutes with no team lead response) -> SendMessage reminder to team lead, mark task completed, shut down

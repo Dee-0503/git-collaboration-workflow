@@ -74,9 +74,11 @@ if git rev-parse --verify "refs/heads/$MERGED_BRANCH" >/dev/null 2>&1; then
   CLEANUP_ITEMS+=("local branch '${MERGED_BRANCH}' (git branch -d ${MERGED_BRANCH})")
 fi
 
-# Match branch name in brackets for exact worktree detection
-# Use grep -F for literal string matching (branch names may contain regex metacharacters like . * +)
-WORKTREE_PATH=$(git worktree list 2>/dev/null | grep -F "[$MERGED_BRANCH]" | head -1 | awk '{print $1}')
+# Use --porcelain for unambiguous parsing (handles paths with spaces, exact branch match)
+WORKTREE_PATH=$(git worktree list --porcelain 2>/dev/null | awk -v branch="refs/heads/$MERGED_BRANCH" '
+  /^worktree / { path = substr($0, 10) }
+  $0 == "branch " branch { print path; exit }
+')
 if [ -n "$WORKTREE_PATH" ]; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS+=("worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})")
@@ -95,6 +97,10 @@ fi
 
 # Build JSON output safely via jq — $ARGS.positional creates a proper JSON array
 # preventing branch-name injection and ensuring valid JSON structure
+if ! command -v jq >/dev/null 2>&1; then
+  echo "warning: jq not found, skipping cleanup suggestion output" >&2
+  exit 0
+fi
 jq -n --arg pr "$MERGED_PR" --arg branch "$MERGED_BRANCH" \
       --argjson count "$CLEANUP_COUNT" \
   '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: " + ($ARGS.positional | join(", ")) + ". RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}' \
