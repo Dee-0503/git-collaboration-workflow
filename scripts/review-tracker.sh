@@ -83,7 +83,7 @@ db_file = os.environ['DB_FILE']
 pr_num = os.environ['PR_NUM']
 lock_fd = None
 try:
-    lock_fd = open(db_file + '.lock', 'w')
+    lock_fd = open(db_file + '.lock', 'a')
     fcntl.flock(lock_fd, fcntl.LOCK_SH)
     with open(db_file, 'r') as f:
         db = json.load(f)
@@ -154,7 +154,7 @@ import json, os, sys, fcntl
 db_file = os.environ['DB_FILE']
 lock_fd = None
 try:
-    lock_fd = open(db_file + '.lock', 'w')
+    lock_fd = open(db_file + '.lock', 'a')
     fcntl.flock(lock_fd, fcntl.LOCK_SH)
     with open(db_file, 'r') as f:
         db = json.load(f)

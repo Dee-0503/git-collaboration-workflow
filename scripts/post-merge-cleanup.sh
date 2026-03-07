@@ -48,12 +48,12 @@ if [ -z "$MERGED_PR" ]; then
   exit 0
 fi
 
-PR_DATA=$(gh pr view "$MERGED_PR" --json headRefName,state --jq '.headRefName + " " + .state' 2>/dev/null || echo "")
+PR_DATA=$(gh pr view "$MERGED_PR" --json headRefName,state --jq '[.headRefName, .state] | @tsv' 2>/dev/null || echo "")
 MERGED_BRANCH=""
 MERGE_STATE=""
 if [ -n "$PR_DATA" ]; then
-  MERGED_BRANCH=$(echo "$PR_DATA" | awk '{print $1}')
-  MERGE_STATE=$(echo "$PR_DATA" | awk '{print $2}')
+  MERGED_BRANCH=$(printf '%s' "$PR_DATA" | cut -f1)
+  MERGE_STATE=$(printf '%s' "$PR_DATA" | cut -f2)
 fi
 if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
@@ -93,5 +93,5 @@ bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null
 # preventing branch-name injection and ensuring valid JSON structure
 jq -n --arg pr "$MERGED_PR" --arg branch "$MERGED_BRANCH" \
       --argjson count "$CLEANUP_COUNT" \
-  '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: " + ($ARGS.positional | tostring) + ". RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}' \
+  '{systemMessage: ("PR #" + $pr + " merged successfully. Branch \u0027" + $branch + "\u0027 can be cleaned up. Found " + ($count|tostring) + " item(s) to clean: " + ($ARGS.positional | join(", ")) + ". RECOMMEND: Ask user for approval before deleting. Run /cleanup-branches for a comprehensive cleanup.")}' \
   --args "${CLEANUP_ITEMS[@]}"
