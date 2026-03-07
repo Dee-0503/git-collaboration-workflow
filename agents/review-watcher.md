@@ -63,7 +63,7 @@ be seen by anyone unless you use SendMessage.
    gh pr view <PR_NUMBER> --json state --jq '.state'
    ```
 3. If the PR is MERGED or CLOSED, update the tracker DB and notify the team lead, then shut down.
-4. If the check is still PENDING or IN_PROGRESS, use `sleep 60` to wait, then check again. Repeat up to 15 times (15 minutes max) per poll cycle.
+4. If the check is still PENDING or IN_PROGRESS, use `sleep 60` to wait, then check again. Repeat up to 5 times (5 minutes max) per poll cycle.
 5. Update the tracker DB timestamp at the START of each poll iteration (before sleep), so that if the agent is killed mid-loop, stale timestamps signal monitoring has stopped:
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" update <PR_NUMBER> "pending_review" "0"
@@ -140,5 +140,5 @@ For each review comment, categorize:
 - PR merged or closed -> update DB to "closed", SendMessage to team lead, mark task completed, shut down
 - Review passed (0 comments) -> update DB to "passed", SendMessage to team lead, mark task completed, shut down
 - Received shutdown_request from team lead -> approve via SendMessage(type: "shutdown_response", approve: true) and shut down
-- Max poll attempts reached (15 rounds per cycle) -> SendMessage to team lead "Review still pending after 15 minutes", mark task completed, shut down
+- Max poll attempts reached (5 rounds per cycle) -> SendMessage to team lead "Review still pending after 5 minutes", mark task completed, shut down
 - Max fix-and-re-review cycles reached (5 total) -> SendMessage to team lead "Reached 5 fix cycles, human intervention needed", mark task completed, shut down
