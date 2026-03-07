@@ -38,8 +38,9 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
 fi
 
 # Extract PR number — explicit (gh pr merge 42) or inferred from current branch
-# Strip --flag=value patterns first to avoid extracting digits from flag values (e.g., --timeout=30)
-MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/--[a-zA-Z_-]*=[^ ]*//g' | grep -oE '[0-9]+' | head -1)
+# Strip --flag=value and --flag non-numeric-value patterns to avoid extracting digits from
+# flag values (e.g., --timeout=30, --repo org123/repo)
+MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/--[a-zA-Z_-]*=[^ ]*//g; s/--[a-zA-Z_-]* [^ ]*[^0-9 ][^ ]*//g' | grep -oE '[0-9]+' | head -1)
 if [ -z "$MERGED_PR" ]; then
   # No explicit number: gh pr merge --squash (infers current branch)
   MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
@@ -75,7 +76,7 @@ fi
 
 # Match branch name in brackets for exact worktree detection
 # Use grep -F for literal string matching (branch names may contain regex metacharacters like . * +)
-WORKTREE_PATH=$(git worktree list 2>/dev/null | grep -F "[$MERGED_BRANCH]" | awk '{print $1}')
+WORKTREE_PATH=$(git worktree list 2>/dev/null | grep -F "[$MERGED_BRANCH]" | head -1 | awk '{print $1}')
 if [ -n "$WORKTREE_PATH" ]; then
   CLEANUP_COUNT=$((CLEANUP_COUNT + 1))
   CLEANUP_ITEMS+=("worktree at '${WORKTREE_PATH}' (git worktree remove ${WORKTREE_PATH})")
@@ -86,8 +87,11 @@ if [ "$CLEANUP_COUNT" -eq 0 ]; then
 fi
 
 # Update review tracker (MERGED_PR is guaranteed non-empty — guarded by exit at line 47-49)
+# Only call update if PR is registered; unregistered PRs (hotfix, integration merges) are expected
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || echo "warning: failed to update review-tracker for PR #$MERGED_PR" >&2
+if bash "$SCRIPT_DIR/review-tracker.sh" status "$MERGED_PR" >/dev/null 2>&1; then
+  bash "$SCRIPT_DIR/review-tracker.sh" update "$MERGED_PR" "closed" "0" >/dev/null 2>&1 || echo "warning: failed to update review-tracker for PR #$MERGED_PR" >&2
+fi
 
 # Build JSON output safely via jq — $ARGS.positional creates a proper JSON array
 # preventing branch-name injection and ensuring valid JSON structure

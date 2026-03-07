@@ -61,8 +61,10 @@ try:
         'last_check': '',
         'comments_count': 0
     }
-    with open(db_file, 'w') as f:
+    tmp = db_file + '.tmp'
+    with open(tmp, 'w') as f:
         json.dump(db, f, indent=2)
+    os.replace(tmp, db_file)
     print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': 'pending_review'}))
 except Exception as e:
     print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
@@ -131,8 +133,10 @@ try:
         pr['comments_count'] = comments
         if new_status == 'pending_review' and old_status == 'fixing':
             pr['round'] = pr.get('round', 1) + 1
-        with open(db_file, 'w') as f:
+        tmp = db_file + '.tmp'
+        with open(tmp, 'w') as f:
             json.dump(db, f, indent=2)
+        os.replace(tmp, db_file)
         print(json.dumps({'status': 'ok', 'pr': pr_num, 'state': new_status}))
     else:
         print(json.dumps({'status': 'not_found', 'pr': pr_num}), file=sys.stderr)
@@ -184,8 +188,10 @@ try:
     removed = [k for k, v in db['prs'].items() if v['status'] in ('passed', 'closed')]
     for k in removed:
         del db['prs'][k]
-    with open(db_file, 'w') as f:
+    tmp = db_file + '.tmp'
+    with open(tmp, 'w') as f:
         json.dump(db, f, indent=2)
+    os.replace(tmp, db_file)
     print(json.dumps({'status': 'ok', 'removed': len(removed), 'remaining': len(db['prs'])}))
 except Exception as e:
     print(json.dumps({'status': 'error', 'message': str(e)}), file=sys.stderr)
