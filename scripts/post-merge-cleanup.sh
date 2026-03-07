@@ -50,13 +50,19 @@ if [ -z "$MERGED_PR" ]; then
   exit 0
 fi
 
-PR_DATA=$(gh pr view "$MERGED_PR" --json headRefName,state --jq '[.headRefName, .state] | @tsv' 2>/dev/null || echo "")
+# Retry PR state detection — GitHub processes merges asynchronously, so
+# gh pr view may return OPEN for a few seconds after gh pr merge succeeds.
 MERGED_BRANCH=""
 MERGE_STATE=""
-if [ -n "$PR_DATA" ]; then
-  MERGED_BRANCH=$(printf '%s' "$PR_DATA" | cut -f1)
-  MERGE_STATE=$(printf '%s' "$PR_DATA" | cut -f2)
-fi
+for _retry in 1 2 3; do
+  PR_DATA=$(gh pr view "$MERGED_PR" --json headRefName,state --jq '[.headRefName, .state] | @tsv' 2>/dev/null || echo "")
+  if [ -n "$PR_DATA" ]; then
+    MERGED_BRANCH=$(printf '%s' "$PR_DATA" | cut -f1)
+    MERGE_STATE=$(printf '%s' "$PR_DATA" | cut -f2)
+  fi
+  [ "$MERGE_STATE" = "MERGED" ] && break
+  sleep 3
+done
 if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
 fi

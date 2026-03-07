@@ -108,7 +108,7 @@ Inform the user: "PR registered for cloud review tracking."
 
 ### Step 10 — Spawn review-watcher Teammate
 
-Offer to start automated review monitoring:
+If the PR targets `main` (same condition as Step 9), offer to start automated review monitoring:
 
 "Cloud code review will run on GitHub Actions (typically 5-15 minutes).
 I can spawn a review-watcher teammate to monitor the review and auto-fix code-level issues.

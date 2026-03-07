@@ -111,7 +111,7 @@ For each review comment, categorize:
    ```
 4. SendMessage to team lead: "Fixed N code-level issues on PR #<PR_NUMBER>. Pushed changes, new review round will start."
 5. Update DB back to pending_review, increment round
-6. Go back to Phase 1 (poll for the new review round). **Maximum 5 fix-and-re-review cycles total** — if exceeded, SendMessage to team lead and shut down.
+6. Go back to Phase 1 (poll for the new review round). **Maximum 3 fix-and-re-review cycles total** — if exceeded, SendMessage to team lead and shut down.
 
 **For logic-level issues:**
 1. SendMessage to team lead with the full details:
@@ -141,5 +141,5 @@ For each review comment, categorize:
 - Review passed (0 comments) -> update DB to "passed", SendMessage to team lead, mark task completed, shut down
 - Received shutdown_request from team lead -> approve via SendMessage(type: "shutdown_response", approve: true) and shut down
 - Max poll attempts reached (15 rounds per cycle) -> SendMessage to team lead "Review still pending after 15 minutes", mark task completed, shut down
-- Max fix-and-re-review cycles reached (5 total) -> SendMessage to team lead "Reached 5 fix cycles, human intervention needed", mark task completed, shut down
+- Max fix-and-re-review cycles reached (3 total) -> SendMessage to team lead "Reached 3 fix cycles, human intervention needed", mark task completed, shut down
 - Logic-level wait timeout (10 minutes with no team lead response) -> SendMessage reminder to team lead, mark task completed, shut down
