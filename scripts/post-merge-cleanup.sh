@@ -38,9 +38,10 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
 fi
 
 # Extract PR number — explicit (gh pr merge 42) or inferred from current branch
-# Strip --flag=value and --flag non-numeric-value patterns to avoid extracting digits from
-# flag values (e.g., --timeout=30, --repo org123/repo)
-MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/--[a-zA-Z_-]*=[^ ]*//g; s/--[a-zA-Z_-]* [^ ]*[^0-9 ][^ ]*//g' | grep -oE '[0-9]+' | head -1)
+# Only match PR number appearing BEFORE any --flags to avoid extracting digits
+# from flag values (e.g., --timeout 30). If number follows flags (gh pr merge --squash 42),
+# the fallback on line ~46 handles it via gh pr view.
+MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/[[:space:]]*--.*//' | grep -oE '[0-9]+' | head -1)
 if [ -z "$MERGED_PR" ]; then
   # No explicit number: gh pr merge --squash (infers current branch)
   MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")

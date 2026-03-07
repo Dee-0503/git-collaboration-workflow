@@ -108,6 +108,11 @@ finally:
   update)
     PR_NUM="${1:?PR number required}"
     NEW_STATUS="${2:?New status required}"
+    # Validate status against allowlist to prevent typos corrupting the DB
+    case "$NEW_STATUS" in
+      pending_review|fixing|passed|closed) ;;
+      *) echo "{\"status\":\"error\",\"message\":\"Invalid status: $NEW_STATUS. Valid: pending_review, fixing, passed, closed\"}" >&2; exit 1 ;;
+    esac
     COMMENTS="${3:-0}"
     ensure_db
     DB_FILE="$DB_FILE" PR_NUM="$PR_NUM" NEW_STATUS="$NEW_STATUS" \
