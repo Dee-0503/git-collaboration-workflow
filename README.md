@@ -16,7 +16,8 @@
 | detect-secrets | `git add` / `git commit` | 检测到凭证则阻止 | **Command + Prompt** |
 | detect-conflict-markers | `git add` / `git commit` | 检测到冲突标记则阻止 | **Command + Prompt** |
 | pr-scope-check | `git diff --stat` 后 | 超过 20 文件警告 | Prompt |
-| repo-status-check | 会话启动时 | 检测仓库状态，推荐操作 + 需审批 | Command |
+| post-merge-cleanup | `gh pr merge` / `git merge` 后 | 检测合并完成，建议清理分支 | Command |
+| repo-status-check | 会话启动时 | 检测仓库状态 + 审查追踪，推荐操作 + 需审批 | Command |
 
 **混合架构**：4 个确定性验证同时使用命令脚本（毫秒级响应）和 Prompt（处理边界情况），并行执行取最严结果。
 
@@ -32,6 +33,7 @@
 | `/rollback` | 回滚最近一次 main 上的发布 |
 | `/cleanup-branches` | 清理已合并的 feature 分支 |
 | `/check-status` | 仓库健康检查，推荐操作 + 原因 + 需审批 |
+| `/check-review` | 查询云端代码审查状态，按文件分组展示评论，支持 spawn review-watcher |
 | `/setup-repo` | 检测并配置 GitHub 仓库最佳实践设置（分支保护、合并策略、SemVer 标签） |
 | `/repo-graph` | 生成 Mermaid 分支拓扑图、提交时间线、分支状态图 |
 | `/review-pr` | 结构化代码审查（正确性/安全性/性能/风格/架构 5 个维度） |
@@ -41,6 +43,47 @@
 | 代理 | 功能 | 工具 |
 |------|------|------|
 | merge-bot | 监控 PR，CI 通过后自动入队 Merge Queue | Bash, Read |
+| review-watcher | 轮询云端审查状态，自动修复代码级问题，逻辑级问题通知主控 | Bash, Read, Edit, Write, Grep, Glob |
+
+## 云端代码审查（Cloud Code Review）
+
+插件集成 GitHub Actions 实现自动化云端代码审查，适用于所有指向 `main` 的 PR。
+
+### 双层审查架构
+
+```mermaid
+graph TD
+    A[开发者编写代码] --> B[/review-pr 本地自检]
+    B --> C{发现问题？}
+    C -->|是| A
+    C -->|否| D[git push]
+    D --> E[/create-pr 创建 PR 到 main]
+    E --> F[GitHub Actions: 云端代码审查]
+    E --> G[Spawn review-watcher teammate]
+    G --> H[每 60s 轮询状态]
+    H --> F
+    F --> I{审查结果}
+    I -->|有评论| J[review-watcher 分类处理]
+    I -->|通过| K[准备合并]
+    J --> L[代码级: 自动修复 + push]
+    J --> M[逻辑级: SendMessage 通知主控]
+    L --> F
+    M --> N[人类决策]
+    N --> L
+    K --> O[Squash merge 到 main]
+    O --> P[Post-merge 清理 hook]
+```
+
+### 审查追踪
+
+指向 `main` 的 PR 会自动注册到本地追踪器 `.claude/review-tracker.json`，支持跨会话恢复。
+review-watcher teammate 在后台监控审查完成情况并处理修复，你可以继续其他工作。
+
+相关命令：
+- `/check-review` — 手动查看审查状态，可选择 spawn review-watcher
+- `/create-pr` — 创建 PR 时自动提供审查监控选项（仅 PR 指向 main 时）
+
+详细配置请参考 [云端审查配置指南](docs/cloud-review-setup.md)。
 
 ## 快速安装
 
@@ -144,7 +187,7 @@ git-collaboration-workflow/
 ├── hooks/
 │   └── hooks.json                  # 13 个 hook 实例（含 4 个混合 command+prompt hook）
 ├── scripts/
-│   ├── check-repo-status.sh        # SessionStart 仓库状态检查
+│   ├── check-repo-status.sh        # SessionStart 仓库状态检查（含审查追踪器）
 │   ├── setup-github-repo.sh        # GitHub 仓库最佳实践检查与配置
 │   ├── validate-commit-msg.sh      # Conventional Commits 正则验证
 │   ├── validate-branch-name.sh     # 分支命名正则验证
@@ -158,7 +201,9 @@ git-collaboration-workflow/
 │   ├── rollback-preflight.sh       # 回滚预检（版本信息、风险评估）
 │   ├── cleanup-branches.sh         # 已合并/过期分支候选收集
 │   ├── repo-graph-data.sh          # 仓库拓扑结构化 JSON（供 Mermaid 渲染）
-│   └── review-pr-diff.sh           # 代码审查 diff 数据 + 文件分类
+│   ├── review-pr-diff.sh           # 代码审查 diff 数据 + 文件分类
+│   ├── review-tracker.sh           # PR 审查状态本地 JSON DB（跨会话恢复）
+│   └── post-merge-cleanup.sh       # 合并后分支清理检测
 ├── skills/
 │   ├── start-feature/
 │   │   └── SKILL.md                # /start-feature — 创建 feature 分支
@@ -176,6 +221,8 @@ git-collaboration-workflow/
 │   │   └── SKILL.md                # /cleanup-branches — 清理分支
 │   ├── check-status/
 │   │   └── SKILL.md                # /check-status — 仓库健康检查
+│   ├── check-review/
+│   │   └── SKILL.md                # /check-review — 云端审查状态查询
 │   ├── setup-repo/
 │   │   └── SKILL.md                # /setup-repo — GitHub 仓库最佳实践配置
 │   ├── repo-graph/
@@ -183,17 +230,20 @@ git-collaboration-workflow/
 │   └── review-pr/
 │       └── SKILL.md                # /review-pr — 结构化代码审查
 ├── agents/
-│   └── merge-bot.md                # 自动合并代理
+│   ├── merge-bot.md                # 自动合并代理
+│   └── review-watcher.md           # 云端审查监控 + 自动修复代理
 └── docs/
     ├── setup-guide.md              # 从 0 到 1 完整配置指南
-    ├── architecture.md             # 架构决策记录（8 个 ADR）
+    ├── architecture.md             # 架构决策记录（9 个 ADR）
+    ├── cloud-review-setup.md       # 云端审查配置指南（Backgrace 中继）
     └── workflow-reference.md       # 命令速查卡
 ```
 
 ## 文档
 
 - **[安装配置指南](docs/setup-guide.md)** — 完整的从零开始配置流程
-- **[架构决策](docs/architecture.md)** — 8 个 ADR 记录设计决策和理由
+- **[架构决策](docs/architecture.md)** — 9 个 ADR 记录设计决策和理由
+- **[云端审查配置](docs/cloud-review-setup.md)** — GitHub Actions 云端审查 + Backgrace 中继配置
 - **[命令速查卡](docs/workflow-reference.md)** — 所有 skill、hook、格式规范速查
 - **[验证清单](VALIDATION.md)** — 安装后逐项验证
 
