@@ -38,10 +38,17 @@ if ! echo "$COMMAND" | grep -q 'gh pr merge'; then
 fi
 
 # Extract PR number — explicit (gh pr merge 42) or inferred from current branch
-# Only match PR number appearing BEFORE any --flags to avoid extracting digits
-# from flag values (e.g., --timeout 30). If number follows flags (gh pr merge --squash 42),
-# the fallback on line ~46 handles it via gh pr view.
-MERGED_PR=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p' | sed 's/[[:space:]]*--.*//' | grep -oE '[0-9]+' | head -1)
+# Pass 1: number before any --flags (e.g., gh pr merge 42 --squash)
+# Pass 2: last argument if numeric (e.g., gh pr merge --squash 42)
+# Pass 3: fallback to gh pr view for current branch context
+ARGS_AFTER=$(echo "$COMMAND" | sed -n 's/.*gh pr merge[[:space:]]\{1,\}//p')
+MERGED_PR=$(printf '%s' "$ARGS_AFTER" | sed 's/[[:space:]]*--.*//' | grep -oE '[0-9]+' | head -1)
+if [ -z "$MERGED_PR" ]; then
+  LAST_ARG=$(printf '%s' "$ARGS_AFTER" | awk '{print $NF}')
+  if printf '%s' "$LAST_ARG" | grep -qE '^[0-9]+$'; then
+    MERGED_PR="$LAST_ARG"
+  fi
+fi
 if [ -z "$MERGED_PR" ]; then
   # No explicit number: gh pr merge --squash (infers current branch)
   MERGED_PR=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")

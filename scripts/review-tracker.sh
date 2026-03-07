@@ -111,7 +111,7 @@ finally:
     # Validate status against allowlist to prevent typos corrupting the DB
     case "$NEW_STATUS" in
       pending_review|fixing|passed|closed) ;;
-      *) echo "{\"status\":\"error\",\"message\":\"Invalid status: $NEW_STATUS. Valid: pending_review, fixing, passed, closed\"}" >&2; exit 1 ;;
+      *) printf '{"status":"error","message":"Invalid status. Valid: pending_review, fixing, passed, closed"}\n' >&2; exit 1 ;;
     esac
     COMMENTS="${3:-0}"
     ensure_db

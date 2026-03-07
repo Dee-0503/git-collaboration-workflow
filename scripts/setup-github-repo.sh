@@ -438,8 +438,8 @@ jobs:
             FINDINGS=$(echo "$INLINE_JSON" | jq -r '[.[] | "\(.path):L\(.line // "N/A") — \(.body | .[0:150])"] | to_entries[] | "\(.key + 1). \(.value)"')
             # Prevent GitHub Actions expression injection: ${{ ... }} in comment bodies
             # would be evaluated at workflow parse time, potentially leaking secrets.
-            # Uses ERE mode (-E) so unescaped () form capture groups unambiguously.
-            FINDINGS=$(echo "$FINDINGS" | sed -E 's/\$\{\{([^}]*)\}\}/[EXPR:\1]/g')
+            # Uses ERE mode (-E). Pattern handles single } inside expressions (e.g., ${{ foo}bar }}).
+            FINDINGS=$(echo "$FINDINGS" | sed -E 's/\$\{\{((}[^}]|[^}])*)\}\}/[EXPR:\1]/g')
             DELIM="CONTEXT_$(openssl rand -hex 8)"
             {
               echo "context<<${DELIM}"
