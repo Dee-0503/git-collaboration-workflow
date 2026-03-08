@@ -115,7 +115,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/post-merge-cleanup.sh\"",
-            "timeout": 10
+            "timeout": 30
           }
         ]
       }

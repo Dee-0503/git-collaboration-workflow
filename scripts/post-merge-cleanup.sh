@@ -68,7 +68,7 @@ for _retry in 1 2 3; do
     MERGE_STATE=$(printf '%s' "$PR_DATA" | cut -f2)
   fi
   [ "$MERGE_STATE" = "MERGED" ] && break
-  sleep 3
+  [ "$_retry" -lt 3 ] && sleep 3
 done
 if [ "$MERGE_STATE" != "MERGED" ] || [ -z "$MERGED_BRANCH" ]; then
   exit 0
