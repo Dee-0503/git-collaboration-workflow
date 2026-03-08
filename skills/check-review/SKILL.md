@@ -60,7 +60,7 @@ If the review action has completed:
 ```bash
 # Inline comments
 OWNER_REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-gh api "repos/$OWNER_REPO/pulls/<pr_number>/comments" \
+gh api --paginate "repos/$OWNER_REPO/pulls/<pr_number>/comments" \
   --jq '.[] | {path, line, body, created_at}'
 
 # Review-level comments
