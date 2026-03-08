@@ -106,6 +106,7 @@ Group findings by category:
 - **branch**: Missing branches
 - **protection**: Branch protection rules
 - **labels**: Missing SemVer labels
+- **workflow**: Claude Code GitHub Actions workflow files and API key secret
 
 ### Step 4 — Apply Fixes
 
@@ -118,6 +119,7 @@ Apply all recommended GitHub settings? This will:
 - Add branch protection to main (require 1 PR review, enforce admins, linear history)
 - Add branch protection to integration (require PR, enforce admins)
 - Create SemVer labels (semver:patch, semver:minor, semver:major)
+- Create Claude Code workflow files for @claude interaction and auto PR review
 
 Approve? (y/n)
 ```

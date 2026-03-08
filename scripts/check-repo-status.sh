@@ -19,13 +19,16 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+# JSON-safe branch name for embedding in printf-constructed JSON output
+BRANCH_JSON=$(printf '%s' "$BRANCH" | sed 's/\\/\\\\/g; s/"/\\"/g')
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 RECS=""
 COUNT=0
 
 # 1. Check if on a protected branch (main/integration)
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "integration" ]; then
   COUNT=$((COUNT + 1))
-  RECS="${RECS}${COUNT}. RECOMMEND: Create a feature branch via /start-feature before making any changes. REASON: You are on protected branch '${BRANCH}' — direct commits and pushes will be blocked by hooks. "
+  RECS="${RECS}${COUNT}. RECOMMEND: Create a feature branch via /start-feature before making any changes. REASON: You are on protected branch '${BRANCH_JSON}' — direct commits and pushes will be blocked by hooks. "
 fi
 
 # 2. Check for detached HEAD state
@@ -61,6 +64,33 @@ if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "integration" ] && [ "$BRANCH" != "
   fi
 fi
 
+# 5.5. Check for pending review comments in tracker DB
+# Fast path: skip python3 chain entirely if tracker DB file doesn't exist
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+TRACKER_DB="${REPO_ROOT:+${REPO_ROOT}/.claude/review-tracker.json}"
+if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/review-tracker.sh" ] && [ -n "$TRACKER_DB" ] && [ -f "$TRACKER_DB" ]; then
+  TRACKER_OUTPUT=$(bash "$PLUGIN_ROOT/scripts/review-tracker.sh" list 2>/dev/null || echo "")
+  if [ -n "$TRACKER_OUTPUT" ]; then
+    ACTIVE_COUNT=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('active',0))" 2>/dev/null || echo "0")
+    ACTIVE_COUNT=$(printf '%s' "$ACTIVE_COUNT" | grep -xE '[0-9]+' || echo "0")
+    if [ "$ACTIVE_COUNT" -gt 0 ]; then
+      ACTIVE_DETAILS=$(printf '%s' "$TRACKER_OUTPUT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+parts = []
+for num, pr in d.get('prs', {}).items():
+    if pr['status'] not in ('passed', 'closed'):
+        parts.append(f\"PR #{num} ({pr['branch']}): {pr['status']}, round {pr.get('round',1)}\")
+print('; '.join(parts))
+" 2>/dev/null || echo "")
+      # Escape for safe JSON embedding (replace control chars, then escape backslash and quote)
+      ACTIVE_DETAILS=$(printf '%s' "$ACTIVE_DETAILS" | tr '\n\t\r' '   ' | sed 's/\\/\\\\/g; s/"/\\"/g')
+      COUNT=$((COUNT + 1))
+      RECS="${RECS}${COUNT}. RECOMMEND: Run /check-review to view cloud code review results and optionally spawn a review-watcher teammate. REASON: ${ACTIVE_COUNT} PR(s) have pending review activity: ${ACTIVE_DETAILS}. "
+    fi
+  fi
+fi
+
 # 6. Check if integration branch exists
 if ! git rev-parse --verify origin/integration >/dev/null 2>&1; then
   COUNT=$((COUNT + 1))
@@ -89,7 +119,7 @@ fi
 # ─── GitHub configuration marker ──────────────────────────────────
 # Marker tracks verified GitHub config. Written when all checks pass.
 # Re-checked when: marker missing, remote URL changed, or --full flag.
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# REPO_ROOT was computed at script top (line 22)
 MARKER_FILE=""
 SKIP_GITHUB_CHECK=false
 
@@ -150,10 +180,10 @@ WORKTREE_INFO="worktree_count:${WORKTREE_COUNT},is_worktree:${IS_WORKTREE}"
 # Output
 if [ "$COUNT" -gt 0 ]; then
   if [ -n "$GITHUB_SETUP_NEEDED" ]; then
-    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. CRITICAL SETUP: GitHub repository configuration is incomplete (%s). IMMEDIATELY invoke the /setup-repo skill to check and configure GitHub settings before proceeding with any other work. Present the setup-repo findings and ask for user approval to apply fixes.", "autoInvokeSkill": "setup-repo"}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO" "$GITHUB_SETUP_NEEDED"
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. CRITICAL SETUP: GitHub repository configuration is incomplete (%s). IMMEDIATELY invoke the /setup-repo skill to check and configure GitHub settings before proceeding with any other work. Present the setup-repo findings and ask for user approval to apply fixes.", "autoInvokeSkill": "setup-repo"}\n' "$BRANCH_JSON" "$COUNT" "$RECS" "$WORKTREE_INFO" "$GITHUB_SETUP_NEEDED"
   else
-    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH" "$COUNT" "$RECS" "$WORKTREE_INFO"
+    printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | %d issue(s) detected. %sWorktree: %s. ACTION REQUIRED: Present each numbered recommendation to the user with its reason. Ask for explicit approval before executing any recommended action. Do not auto-execute."}\n' "$BRANCH_JSON" "$COUNT" "$RECS" "$WORKTREE_INFO"
   fi
 else
-  printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | Status: OK. Worktree: %s. No issues detected. Ready to work."}\n' "$BRANCH" "$WORKTREE_INFO"
+  printf '{"systemMessage": "[Git Collaboration Workflow] Branch: %s | Status: OK. Worktree: %s. No issues detected. Ready to work."}\n' "$BRANCH_JSON" "$WORKTREE_INFO"
 fi

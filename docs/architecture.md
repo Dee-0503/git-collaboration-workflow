@@ -181,3 +181,75 @@ an autonomous agent.
 - The existing `merge-bot` agent handles mechanical merge decisions well;
   review requires judgment that benefits from user dialogue
 
+---
+
+## ADR-009: Teammates-Based Cloud Review Engine
+
+**Decision**: Cloud code review monitoring and auto-fix use the Claude Code
+Teammates architecture (TeamCreate + Agent + SendMessage) rather than
+standalone polling scripts.
+
+**Context**: Cloud code review on GitHub Actions takes 5-15 minutes. During
+this time, developers should be able to continue working. The previous
+approach of standalone bash scripts (`poll-review.sh` + `launch-fix.sh`)
+had several limitations:
+- No communication channel back to the developer
+- No ability to categorize issues (code-level vs logic-level)
+- No cross-session recovery if Claude Code session ends during polling
+
+**Architecture**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending_review: /create-pr registers PR
+    pending_review --> pending_review: review-watcher polls (60s)
+    pending_review --> fixing: Comments found (code-level)
+    pending_review --> passed: No comments
+    pending_review --> closed: PR merged/closed
+    fixing --> pending_review: Fix pushed (new round)
+    fixing --> closed: PR merged/closed
+    passed --> [*]
+    closed --> [*]
+```
+
+**Components**:
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `review-watcher` | Agent (Teammate) | Polls GitHub Actions, categorizes comments, auto-fixes code issues |
+| `review-tracker.sh` | Bash script | Local JSON DB at `.claude/review-tracker.json` for state persistence |
+| `/check-review` | Skill | Manual status query, offers to spawn review-watcher |
+| `/create-pr` (enhanced) | Skill | Registers PR in tracker, offers review-watcher spawn |
+| `post-merge-cleanup.sh` | PostToolUse hook | Detects merge completion, suggests branch cleanup |
+| SessionStart (enhanced) | Hook | Checks tracker DB for pending reviews on session start |
+
+**Communication Flow**:
+
+1. `/create-pr` creates PR → registers in `review-tracker.json` → offers
+   to spawn `review-watcher` teammate
+2. `review-watcher` polls GitHub Actions every 60s via `gh pr checks`
+3. On review completion:
+   - **Code-level issues** (syntax, formatting, variables): auto-fix →
+     commit → push → poll next round
+   - **Logic-level issues** (architecture, design): `SendMessage` to main
+     controller with full details → wait for human decision
+4. On PR merge/close: update tracker DB → notify controller → shut down
+
+**Cross-Session Recovery**:
+
+The `review-tracker.json` local DB persists across Claude Code sessions.
+On SessionStart, `check-repo-status.sh` checks for active reviews and
+recommends `/check-review` if pending reviews exist. This handles the case
+where a review-watcher was running but the session ended before completion.
+
+**Rationale**:
+- Teammates provide bidirectional communication (SendMessage) — logic
+  issues can be escalated to the developer without blocking
+- Agent framework handles process lifecycle management
+- Local JSON DB provides cheap, git-ignored persistence without external
+  dependencies
+- Separation of code-level (auto-fix) and logic-level (human decision)
+  reflects the reality that not all review comments can be mechanically
+  resolved
+
+

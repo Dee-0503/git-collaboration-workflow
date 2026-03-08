@@ -15,21 +15,21 @@ fi
 BRANCH=""
 
 # git checkout -b <name>
-BRANCH=$(echo "$COMMAND" | sed -nE 's/.*checkout\s+-b\s+([^ ]+).*/\1/p')
+BRANCH=$(echo "$COMMAND" | sed -nE 's/.*checkout[[:space:]]+-b[[:space:]]+([^ ]+).*/\1/p')
 
 # git switch -c <name>
 if [ -z "$BRANCH" ]; then
-  BRANCH=$(echo "$COMMAND" | sed -nE 's/.*switch\s+-c\s+([^ ]+).*/\1/p')
+  BRANCH=$(echo "$COMMAND" | sed -nE 's/.*switch[[:space:]]+-c[[:space:]]+([^ ]+).*/\1/p')
 fi
 
 # git branch <name> (not git branch -d, -D, -m, -a, -r, -l, --list, etc.)
 if [ -z "$BRANCH" ]; then
-  BRANCH=$(echo "$COMMAND" | sed -nE 's/.*\bgranch\s+([^-][^ ]*).*/\1/p')
+  BRANCH=$(echo "$COMMAND" | sed -nE 's/.*branch[[:space:]]+([^-][^ ]*).*/\1/p')
   # Fallback: more careful extraction for "git branch <name>"
   if [ -z "$BRANCH" ]; then
-    BRANCH=$(echo "$COMMAND" | grep -oE 'git\s+branch\s+[a-zA-Z]' | sed -nE 's/git\s+branch\s+//p')
+    BRANCH=$(echo "$COMMAND" | grep -oE 'git\s+branch\s+[a-zA-Z]' | sed -nE 's/git[[:space:]]+branch[[:space:]]+//p')
     if [ -n "$BRANCH" ]; then
-      BRANCH=$(echo "$COMMAND" | sed -nE 's/.*git\s+branch\s+([^ ]+).*/\1/p')
+      BRANCH=$(echo "$COMMAND" | sed -nE 's/.*git[[:space:]]+branch[[:space:]]+([^ ]+).*/\1/p')
     fi
   fi
 fi

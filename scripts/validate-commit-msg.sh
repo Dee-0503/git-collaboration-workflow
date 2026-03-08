@@ -18,16 +18,16 @@ fi
 MSG=""
 
 # Try double-quoted
-MSG=$(echo "$COMMAND" | sed -nE 's/.*-m\s+"([^"]+)".*/\1/p')
+MSG=$(echo "$COMMAND" | sed -nE 's/.*-m[[:space:]]+"([^"]+)".*/\1/p')
 
 # Try single-quoted
 if [ -z "$MSG" ]; then
-  MSG=$(echo "$COMMAND" | sed -nE "s/.*-m\s+'([^']+)'.*/\1/p")
+  MSG=$(echo "$COMMAND" | sed -nE "s/.*-m[[:space:]]+'([^']+)'.*/\1/p")
 fi
 
 # Try HEREDOC (extract first line after EOF marker)
 if [ -z "$MSG" ]; then
-  MSG=$(echo "$COMMAND" | sed -nE 's/.*-m\s+"\$\(cat <<.*//p' | head -1)
+  MSG=$(echo "$COMMAND" | sed -nE 's/.*-m[[:space:]]+"\$\(cat <<.*//p' | head -1)
 fi
 
 # Could not extract message — let prompt hook handle it
