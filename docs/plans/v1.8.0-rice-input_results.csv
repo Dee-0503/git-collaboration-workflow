@@ -1,0 +1,8 @@
+rank,name,reach,impact,confidence,effort,rice_score
+1,#3 Hook Performance (性能优化 7→4 LLM),3000.0,1.0,100.0,0.5,6000.0
+2,#5 Reviewer APPROVE (自动批准),75.0,2.0,80.0,0.5,240.0
+3,#6 State Persistence (状态持久化),75.0,3.0,70.0,1.5,105.0
+4,#4 Finding State Tracking (状态追踪),75.0,3.0,80.0,2.0,90.0
+5,#1 Inline Review Reply (双向对话),75.0,2.0,80.0,1.5,80.0
+6,#2 Per-Project Enablement (按项目启用),150.0,0.5,80.0,1.0,60.0
+7,#7 Version Update Guide (版本验证),30.0,0.5,80.0,0.5,24.0
