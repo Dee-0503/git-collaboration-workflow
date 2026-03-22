@@ -3,6 +3,8 @@
 # Usage: rollback-preflight.sh
 # Output: JSON with release info, revert target, and risk assessment
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 # Fetch latest
 git fetch origin main 2>/dev/null || true

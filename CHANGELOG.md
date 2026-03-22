@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.8.0-alpha] - 2026-03-22
+
+### Added — Phase 1: Per-Project Enablement (#2)
+- `scripts/lib/gate.sh` — 共享门控函数，根据 `.claude/git-collab.yml` 的 `mode` 字段控制插件生效范围
+  - `full` — 全部 hook 生效
+  - `minimal` — 仅 secret 扫描 + 冲突标记检测
+  - `disabled` — 完全静默
+- SessionStart bootstrap — 首次使用时引导用户选择 mode，写入配置后不再打扰
+- 所有 16 个 hook/skill 脚本加入 gate 检查（2 行/文件）
+
+### Added — Phase 2: Review Convergence (#1 + #4 + #5 + #6)
+- `scripts/review-state.sh` — Finding 状态 CRUD（7 个子命令：init/get/update/upsert/filter/converged/summary），PR Comment 存储
+- `scripts/review-reply.sh` — 双向审查对话（3 个子命令：list-unreplied/reply/collect-threads）
+- GitHub Actions workflow 增强 — 状态加载、过滤 prompt（仅注入 OPEN+DISPUTED）、状态更新、收敛检查 + 自动 APPROVE
+
+### Changed
+- `agents/review-watcher.md` — 新增状态初始化、修复后状态更新、收敛检查自动关闭
+- `skills/check-review/SKILL.md` — 新增 Finding 状态摘要展示 + 手动标记 DISPUTED/WONTFIX
+- 插件版本从 1.7.0 升级到 1.8.0-alpha
+
 ## [1.7.0] - 2026-03-03
 
 ### Added

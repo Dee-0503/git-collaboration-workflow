@@ -2,6 +2,8 @@
 # enforce-branch-naming — Command hook for branch naming convention
 # Fast deterministic check via regex. Runs in parallel with prompt hook.
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")

@@ -3,6 +3,8 @@
 # Usage: cleanup-branches.sh [--include-local]
 # Output: JSON with merged branch candidates
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 INCLUDE_LOCAL=false
 [ "${1:-}" = "--include-local" ] && INCLUDE_LOCAL=true

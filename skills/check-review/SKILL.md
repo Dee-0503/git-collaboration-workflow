@@ -85,14 +85,37 @@ For each comment, categorize as:
 - **Code-level** (syntax, formatting, variables): "Can be auto-fixed"
 - **Logic-level** (architecture, design): "Needs human decision"
 
-### Step 6 — Offer Actions
+### Step 6 — Show Finding State Summary
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-state.sh" summary "$(gh repo view --json nameWithOwner --jq '.nameWithOwner')" <pr_number>
+```
+
+Display the summary to the user in a formatted table.
+
+### Step 7 — Offer Manual Finding Management
+
+If there are OPEN or DISPUTED findings, offer the user options:
+
+1. **Mark as DISPUTED** — User provides evidence that a finding is a false positive
+2. **Mark as WONTFIX** — User confirms this is a deliberate design decision
+3. **View full state** — Show complete finding state JSON
+
+For DISPUTED/WONTFIX marking:
+```bash
+# Mark finding and post reply
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-state.sh" update "$OWNER_REPO" <pr_number> <finding_id> DISPUTED "<user's evidence>"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-reply.sh" reply "$OWNER_REPO" <pr_number> <comment_id> disputed "<user's evidence>"
+```
+
+### Step 8 — Offer Actions
 
 Present options to the user:
 1. **Start review-watcher** — Spawn a review-watcher teammate to auto-monitor and fix
 2. **Fix manually** — User will fix issues themselves
 3. **Dismiss** — Do nothing now, check again later
 
-### Step 7 — Spawn Teammate (if chosen)
+### Step 9 — Spawn Teammate (if chosen)
 
 If user chooses to start review-watcher:
 

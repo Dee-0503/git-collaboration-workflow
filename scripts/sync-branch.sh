@@ -3,6 +3,8 @@
 # Usage: sync-branch.sh [--auto-stash]
 # Output: JSON with status, conflicts if any
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 AUTO_STASH=false
 [ "${1:-}" = "--auto-stash" ] && AUTO_STASH=true

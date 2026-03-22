@@ -91,6 +91,14 @@ When the review check completes (SUCCESS, FAILURE, NEUTRAL, ERROR):
 
 4. If comments exist: categorize and process.
 
+#### State Initialization
+
+Before processing comments, initialize the finding state tracker:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-state.sh" init "$(gh repo view --json nameWithOwner --jq '.nameWithOwner')" <PR_NUMBER>
+```
+
 ### Phase 3: Categorize and Fix
 
 For each review comment, categorize:
@@ -113,12 +121,50 @@ For each review comment, categorize:
 5. Update DB back to pending_review, increment round
 6. Go back to Phase 1 (poll for the new review round). **Maximum 3 fix-and-re-review cycles total** — if exceeded, SendMessage to team lead and shut down.
 
+#### After Fixing a Code-Level Issue
+
+1. Reply to the inline comment:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-reply.sh" reply "$OWNER_REPO" <PR_NUMBER> <COMMENT_ID> resolved "Fixed in commit $(git rev-parse --short HEAD). <brief description>"
+```
+
+2. Update finding state:
+```bash
+# Generate finding ID from the comment's file, line, and category
+FINDING_ID=$(echo -n "<file>:<line>:<category>" | shasum -a 256 | cut -c1-8)
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-state.sh" update "$OWNER_REPO" <PR_NUMBER> "f-$FINDING_ID" RESOLVED "Fixed in commit $(git rev-parse --short HEAD)"
+```
+
 **For logic-level issues:**
 1. SendMessage to team lead with the full details:
    "PR #<N> has logic-level review comments that need your decision:
    - File: <path>, Line <N>: <comment body>
    Please review and tell me how to proceed."
 2. Wait for response from team lead before taking action. **Maximum 10 minutes** — if no response received, SendMessage a reminder and shut down, leaving the issue for manual resolution.
+
+#### For Logic-Level Issues
+
+1. Reply to acknowledge:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-reply.sh" reply "$OWNER_REPO" <PR_NUMBER> <COMMENT_ID> acknowledged "Escalated to human developer for decision."
+```
+
+2. SendMessage to team lead (existing behavior, unchanged)
+
+#### After Completing Fix Cycle
+
+Check convergence before starting next poll cycle:
+
+```bash
+if bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-state.sh" converged "$OWNER_REPO" <PR_NUMBER>; then
+  echo "Review converged. All findings resolved."
+  # Update tracker DB
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/review-tracker.sh" update <PR_NUMBER> "passed"
+  # SendMessage to team lead
+  SendMessage: "PR #<PR_NUMBER> review converged. All findings resolved. Ready for merge."
+  # Shut down
+fi
+```
 
 ## Safety Rules
 

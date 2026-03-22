@@ -5,6 +5,8 @@
 #   visibility: public | private (only used with create-and-apply)
 # Output: JSON with status, findings/actions, and manual steps
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 MODE="${1:-check}"
 VISIBILITY="${2:-public}"
