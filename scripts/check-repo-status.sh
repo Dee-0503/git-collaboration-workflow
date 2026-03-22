@@ -37,11 +37,11 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
 else
   # Bootstrap: no config file, pop native OS dialog for mode selection
   if [ "$IS_GIT_REPO" = "false" ]; then
-    DIALOG_TEXT="Git Collaboration Workflow 插件初始化\n\n当前目录不是 Git 仓库。\n请选择插件模式："
-    BUTTON_LIST='{"full (初始化 Git + 全部 hook)", "minimal (初始化 Git + 仅安全检测)", "disabled (关闭插件)"}'
+    DIALOG_TEXT="🔧 Git Collaboration Workflow 插件初始化\n\n📍 当前目录不是 Git 仓库\n\n请选择插件模式：\n\n✅ full — 初始化 Git + 启用全部 hook\n    分支保护、commit 格式校验、secret 扫描、冲突检测等\n    推荐用于团队协作项目\n\n⚡ minimal — 初始化 Git + 仅安全检测\n    仅保留 secret 扫描和冲突标记检测\n    适合个人项目或轻量使用\n\n🚫 disabled — 完全关闭插件\n    不初始化 Git，所有 hook 静默\n\n💡 之后可随时修改 .claude/git-collab.yml 中的 mode 值来切换模式"
+    BUTTON_LIST='{"full — 初始化 Git + 全部 hook", "minimal — 初始化 Git + 仅安全检测", "disabled — 关闭插件"}'
   else
-    DIALOG_TEXT="Git Collaboration Workflow 插件初始化\n\n请为此项目选择插件模式："
-    BUTTON_LIST='{"full (全部 hook)", "minimal (仅安全检测)", "disabled (关闭插件)"}'
+    DIALOG_TEXT="🔧 Git Collaboration Workflow 插件初始化\n\n请选择插件模式：\n\n✅ full — 启用全部 hook\n    分支保护、commit 格式校验、secret 扫描、冲突检测等\n    推荐用于团队协作项目\n\n⚡ minimal — 仅安全检测\n    仅保留 secret 扫描和冲突标记检测\n    适合个人项目或轻量使用\n\n🚫 disabled — 完全关闭插件\n    所有 hook 静默，不产生任何干扰\n\n💡 之后可随时修改 .claude/git-collab.yml 中的 mode 值来切换模式"
+    BUTTON_LIST='{"full — 全部 hook", "minimal — 仅安全检测", "disabled — 关闭插件"}'
   fi
 
   # macOS native dialog via osascript
@@ -77,7 +77,10 @@ else
   python3 -c "
 import json
 mode = '$MODE'
-msg = f'[Git Collaboration Workflow] 项目已配置为 {mode} 模式。配置文件已写入 .claude/git-collab.yml。'
+mode_desc = {'full': '全部 hook 生效', 'minimal': '仅安全检测', 'disabled': '插件已关闭'}
+msg = f'''[Git Collaboration Workflow] ✅ 项目已配置为 {mode} 模式（{mode_desc.get(mode, mode)}）。
+配置文件：.claude/git-collab.yml
+切换模式：编辑该文件的 mode 值（full/minimal/disabled）即可，下次 session 生效。'''
 print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':msg}}))
 "
 
