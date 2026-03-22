@@ -35,30 +35,58 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
     exit 0
   fi
 else
-  # Bootstrap: no config file exists, inject mandatory setup context
-  IS_GIT_FLAG="$IS_GIT_REPO"
+  # Bootstrap: no config file, pop native OS dialog for mode selection
+  if [ "$IS_GIT_REPO" = "false" ]; then
+    DIALOG_TEXT="Git Collaboration Workflow 插件初始化\n\n当前目录不是 Git 仓库。\n请选择插件模式："
+    BUTTON_LIST='{"full (初始化 Git + 全部 hook)", "minimal (初始化 Git + 仅安全检测)", "disabled (关闭插件)"}'
+  else
+    DIALOG_TEXT="Git Collaboration Workflow 插件初始化\n\n请为此项目选择插件模式："
+    BUTTON_LIST='{"full (全部 hook)", "minimal (仅安全检测)", "disabled (关闭插件)"}'
+  fi
+
+  # macOS native dialog via osascript
+  CHOICE=$(osascript -e "
+    set theChoice to choose from list $BUTTON_LIST \
+      with prompt \"$DIALOG_TEXT\" \
+      with title \"Git Collaboration Workflow\" \
+      default items {item 1 of $BUTTON_LIST}
+    if theChoice is false then
+      return \"disabled\"
+    else
+      return item 1 of theChoice
+    end if
+  " 2>/dev/null) || CHOICE="disabled"
+
+  # Extract mode keyword from choice string
+  case "$CHOICE" in
+    full*) MODE="full" ;;
+    minimal*) MODE="minimal" ;;
+    *) MODE="disabled" ;;
+  esac
+
+  # If non-git and user chose full/minimal, run git init
+  if [ "$IS_GIT_REPO" = "false" ] && [ "$MODE" != "disabled" ]; then
+    git init -q
+  fi
+
+  # Write config
+  mkdir -p .claude
+  echo "mode: $MODE" > .claude/git-collab.yml
+
+  # Report result to Claude via systemMessage
   python3 -c "
 import json
-is_git = '$IS_GIT_FLAG' == 'true'
-note = '' if is_git else '当前目录不是 Git 仓库。如需使用 Git 协作功能，需要先运行 git init。\n\n'
-ctx = '''## [MANDATORY SETUP — Git Collaboration Workflow]
-
-{note}未找到 .claude/git-collab.yml 配置文件。在执行任何其他操作之前，你必须立即使用 AskUserQuestion 工具向用户展示以下选择：
-
-请为此项目选择 Git Collaboration Workflow 插件模式：
-- **full** — 全部 hook 生效（推荐用于团队协作项目）
-- **minimal** — 仅保留 secret 扫描和冲突标记检测
-- **disabled** — 完全关闭插件
-
-用户选择后，执行以下操作：
-1. 如果当前不是 Git 仓库且用户选择了 full 或 minimal，先运行 git init
-2. 创建配置文件：mkdir -p .claude && 写入 mode: <用户选择的模式> 到 .claude/git-collab.yml
-3. 确认配置完成
-
-在此配置完成之前，不要处理用户的任何其他请求。'''.format(note=note)
-print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':ctx}}))
+mode = '$MODE'
+msg = f'[Git Collaboration Workflow] 项目已配置为 {mode} 模式。配置文件已写入 .claude/git-collab.yml。'
+print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':msg}}))
 "
-  exit 0
+
+  # If disabled, exit now; otherwise fall through to normal checks
+  if [ "$MODE" = "disabled" ]; then
+    exit 0
+  fi
+  # If was non-git but now initialized, set flag for remaining checks
+  IS_GIT_REPO=true
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
