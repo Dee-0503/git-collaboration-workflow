@@ -23,9 +23,16 @@ fi
 
 # Find the state comment ID, returns "" if not found
 find_state_comment_id() {
-  gh api --paginate "repos/$REPO/issues/$PR/comments" \
+  local result
+  result=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
     --jq ".[] | select(.body | test(\"$MARKER_START\")) | .id" \
-    2>/dev/null | head -1 || echo ""
+    2>/dev/null | head -1) || true
+  # Validate: must be a numeric ID, not error JSON
+  if [[ "$result" =~ ^[0-9]+$ ]]; then
+    echo "$result"
+  else
+    echo ""
+  fi
 }
 
 # Extract JSON from state comment body
