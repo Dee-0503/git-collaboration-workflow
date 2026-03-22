@@ -3,6 +3,8 @@
 # Usage: prepare-release-data.sh
 # Output: JSON with merged PRs, version info, changelog entries
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 # Check gh CLI
 if ! command -v gh >/dev/null 2>&1; then

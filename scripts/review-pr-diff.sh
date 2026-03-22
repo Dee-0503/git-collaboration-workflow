@@ -3,6 +3,8 @@
 # Usage: review-pr-diff.sh [pr-number]
 # Output: JSON with changed files, categories, line counts, diff content
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 PR_NUMBER="${1:-}"
 

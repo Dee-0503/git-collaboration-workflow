@@ -11,6 +11,8 @@
 # individual command failures (git ls-remote, gh pr view, jq) are handled via
 # explicit exit-code checks and || fallbacks throughout the script.
 set -uo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 # Read tool input from stdin with timeout to avoid blocking
 INPUT=$(timeout 2 cat 2>/dev/null || echo "")

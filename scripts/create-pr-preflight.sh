@@ -3,6 +3,8 @@
 # Usage: create-pr-preflight.sh
 # Output: JSON with changed files, conflicts with open PRs, suggested semver label
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 

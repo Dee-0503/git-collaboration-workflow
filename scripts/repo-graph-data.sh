@@ -3,6 +3,8 @@
 # Usage: repo-graph-data.sh [topology|timeline|state|all]
 # Output: JSON with branches, commits, relationships for LLM to render as Mermaid
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 DIAGRAM_TYPE="${1:-all}"
 

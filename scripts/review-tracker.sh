@@ -4,6 +4,8 @@
 #   Actions: init, register <pr_number> <branch>, status <pr_number>,
 #            update <pr_number> <new_status> [comments_count], list, cleanup
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$REPO_ROOT" ]; then

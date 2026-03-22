@@ -18,6 +18,23 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 0
 fi
 
+# ─── Per-Project Enablement Gate ─────────────────────────────────
+# Read .claude/git-collab.yml to determine plugin mode.
+# - If yml exists and mode=disabled → exit silently
+# - If yml doesn't exist → output bootstrap prompt and exit
+# - If yml exists and mode=full/minimal → continue normal checks
+GIT_COLLAB_CONFIG=".claude/git-collab.yml"
+if [ -f "$GIT_COLLAB_CONFIG" ]; then
+  GIT_COLLAB_MODE=$(grep '^mode:' "$GIT_COLLAB_CONFIG" | awk '{print $2}')
+  if [ "$GIT_COLLAB_MODE" = "disabled" ]; then
+    exit 0
+  fi
+else
+  # Bootstrap: no config file exists, prompt user to choose
+  printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：未找到 .claude/git-collab.yml 配置文件。\\n\\n请为此项目选择插件模式：\\n\\n1. **full** — 全部 hook 生效（推荐用于团队协作项目）\\n2. **minimal** — 仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
+  exit 0
+fi
+
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 # JSON-safe branch name for embedding in printf-constructed JSON output
 BRANCH_JSON=$(printf '%s' "$BRANCH" | sed 's/\\/\\\\/g; s/"/\\"/g')

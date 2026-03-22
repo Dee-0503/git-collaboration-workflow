@@ -3,6 +3,8 @@
 # Usage: start-feature.sh <contributor-id> <feature-slug>
 # Output: JSON with status and branch info
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 ID="${1:-}"
 SLUG="${2:-}"

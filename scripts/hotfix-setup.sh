@@ -3,6 +3,8 @@
 # Usage: hotfix-setup.sh <hotfix-slug>
 # Output: JSON with branch info and next steps
 set -euo pipefail
+source "$(dirname "$0")/lib/gate.sh"
+check_enabled
 
 SLUG="${1:-}"
 
