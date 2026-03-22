@@ -13,25 +13,34 @@ for arg in "$@"; do
   esac
 done
 
-# Exit silently if not in a git repository
-if ! git rev-parse --git-dir >/dev/null 2>&1; then
-  exit 0
-fi
-
 # ─── Per-Project Enablement Gate ─────────────────────────────────
 # Read .claude/git-collab.yml to determine plugin mode.
 # - If yml exists and mode=disabled → exit silently
-# - If yml doesn't exist → output bootstrap prompt and exit
+# - If yml doesn't exist → output bootstrap prompt and exit (once only)
 # - If yml exists and mode=full/minimal → continue normal checks
+# Bootstrap runs BEFORE git check — even non-git projects get the one-time prompt.
+IS_GIT_REPO=true
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  IS_GIT_REPO=false
+fi
+
 GIT_COLLAB_CONFIG=".claude/git-collab.yml"
 if [ -f "$GIT_COLLAB_CONFIG" ]; then
   GIT_COLLAB_MODE=$(grep '^mode:' "$GIT_COLLAB_CONFIG" | awk '{print $2}')
   if [ "$GIT_COLLAB_MODE" = "disabled" ]; then
     exit 0
   fi
+  # If not a git repo but mode is full/minimal, nothing useful to check
+  if [ "$IS_GIT_REPO" = "false" ]; then
+    exit 0
+  fi
 else
-  # Bootstrap: no config file exists, prompt user to choose
-  printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：未找到 .claude/git-collab.yml 配置文件。\\n\\n请为此项目选择插件模式：\\n\\n1. **full** — 全部 hook 生效（推荐用于团队协作项目）\\n2. **minimal** — 仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
+  # Bootstrap: no config file exists, prompt user to choose (one-time)
+  if [ "$IS_GIT_REPO" = "false" ]; then
+    printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：当前目录不是 Git 仓库，且未找到 .claude/git-collab.yml 配置文件。\\n\\n请选择：\\n\\n1. **初始化 Git 仓库 + full 模式** — 运行 git init 并启用全部 hook（推荐用于新项目）\\n2. **初始化 Git 仓库 + minimal 模式** — 运行 git init，仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 不初始化 Git，完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
+  else
+    printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：未找到 .claude/git-collab.yml 配置文件。\\n\\n请为此项目选择插件模式：\\n\\n1. **full** — 全部 hook 生效（推荐用于团队协作项目）\\n2. **minimal** — 仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
+  fi
   exit 0
 fi
 
