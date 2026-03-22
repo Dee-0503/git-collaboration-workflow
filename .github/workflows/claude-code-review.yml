@@ -63,6 +63,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Load review state
+        id: review-state
+        run: |
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          # Initialize state if first round
+          bash scripts/review-state.sh init "$REPO" "$PR" || true
+
+          # Get active findings only (OPEN + DISPUTED)
+          ACTIVE=$(bash scripts/review-state.sh filter "$REPO" "$PR")
+          ACTIVE_COUNT=$(echo "$ACTIVE" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+
+          echo "active_count=$ACTIVE_COUNT" >> "$GITHUB_OUTPUT"
+
+          # Randomized heredoc delimiter
+          DELIM="STATE_$(openssl rand -hex 8)"
+          {
+            echo "active_findings<<${DELIM}"
+            if [ "$ACTIVE_COUNT" != "0" ]; then
+              echo "ACTIVE REVIEW FINDINGS ($ACTIVE_COUNT unresolved from prior rounds):"
+              echo "$ACTIVE"
+            else
+              echo "No unresolved findings from prior rounds."
+            fi
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Verify API connectivity
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
@@ -88,7 +116,15 @@ jobs:
           prompt: |
             You are a senior code reviewer. Perform a thorough review of PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
-            ${{ steps.prev-review.outputs.context }}
+            ${{ steps.review-state.outputs.active_findings }}
+
+            IMPORTANT: Previously resolved findings have been filtered out. Focus ONLY on:
+            1. New issues in the current code changes
+            2. OPEN findings listed above that remain unfixed
+            3. DISPUTED findings listed above — evaluate the developer's evidence before re-raising
+
+            When a finding has a developer reply marked [DISPUTED] with evidence,
+            evaluate the evidence objectively. If the evidence is valid, do NOT re-raise.
 
             ## Review Pipeline
 
@@ -173,3 +209,42 @@ jobs:
           show_full_output: true
           additional_permissions: |
             actions: read
+
+      - name: Update review state
+        if: always()
+        run: |
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+          ROUND=$(bash scripts/review-state.sh get "$REPO" "$PR" | python3 -c "import json,sys; print(json.load(sys.stdin).get('last_updated_round',0)+1)" 2>/dev/null || echo "1")
+
+          # Collect new findings from this round's inline comments
+          # Get comments created in this workflow run (last 5 minutes)
+          NEW_COMMENTS=$(gh api --paginate "repos/$REPO/pulls/$PR/comments" \
+            --jq "[.[] | select(.user.login == \"claude[bot]\") | select(.created_at > \"$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-5M +%Y-%m-%dT%H:%M:%SZ)\") | {file: .path, line_start: .line, line_end: (.line // 0), category: \"review\", summary: (.body | split(\"\n\")[0] | .[0:200])}]" 2>/dev/null || echo "[]")
+
+          echo "$NEW_COMMENTS" > /tmp/new-findings.json
+          bash scripts/review-state.sh upsert "$REPO" "$PR" /tmp/new-findings.json "$ROUND"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check convergence and approve
+        if: always()
+        run: |
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          CONV_RESULT=$(bash scripts/review-state.sh converged "$REPO" "$PR" 2>/dev/null || true)
+          CONVERGED=$(echo "$CONV_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('converged', False))" 2>/dev/null || echo "False")
+
+          if [ "$CONVERGED" = "True" ]; then
+            echo "Review converged. Submitting approval."
+            ROUND=$(echo "$CONV_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('round', 0))" 2>/dev/null || echo "?")
+            TOTAL=$(echo "$CONV_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('total_findings', 0))" 2>/dev/null || echo "?")
+            gh pr review "$PR" --repo "$REPO" --approve \
+              --body "All findings resolved. Review converged after $ROUND rounds ($TOTAL total findings processed)."
+          else
+            REASON=$(echo "$CONV_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reason', 'unknown'))" 2>/dev/null || echo "not converged")
+            echo "Review not converged: $REASON"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
