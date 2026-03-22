@@ -35,12 +35,8 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
     exit 0
   fi
 else
-  # Bootstrap: no config file exists, prompt user to choose (one-time)
-  if [ "$IS_GIT_REPO" = "false" ]; then
-    printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：当前目录不是 Git 仓库，且未找到 .claude/git-collab.yml 配置文件。\\n\\n请选择：\\n\\n1. **初始化 Git 仓库 + full 模式** — 运行 git init 并启用全部 hook（推荐用于新项目）\\n2. **初始化 Git 仓库 + minimal 模式** — 运行 git init，仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 不初始化 Git，完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
-  else
-    printf '{"systemMessage": "[Git Collaboration Workflow] 首次使用检测：未找到 .claude/git-collab.yml 配置文件。\\n\\n请为此项目选择插件模式：\\n\\n1. **full** — 全部 hook 生效（推荐用于团队协作项目）\\n2. **minimal** — 仅保留 secret 扫描和冲突标记检测\\n3. **disabled** — 完全关闭插件\\n\\n请告诉我你的选择（1/2/3），我会创建配置文件 .claude/git-collab.yml。在配置完成前，插件的所有 hook 不会生效。"}\n'
-  fi
+  # Bootstrap: no config file exists, auto-invoke setup-project skill
+  printf '{"systemMessage": "[Git Collaboration Workflow] 未找到项目配置，正在启动初始化引导...", "autoInvokeSkill": "setup-project"}\n'
   exit 0
 fi
 
