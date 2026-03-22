@@ -1,6 +1,18 @@
 {
-  "description": "Git Collaboration Architecture — 3 prompt-only + 4 hybrid (command+prompt) PreToolUse guards + 2 PostToolUse (1 advisory + 1 cleanup) + 1 SessionStart status check",
+  "description": "Git Collaboration Architecture — 1 UserPromptSubmit gate + 3 prompt-only + 4 hybrid (command+prompt) PreToolUse guards + 2 PostToolUse (1 advisory + 1 cleanup) + 1 SessionStart status check",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-project-config.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "*",
