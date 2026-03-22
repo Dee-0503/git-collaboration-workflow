@@ -12,18 +12,16 @@ if [ -f "$CONFIG" ]; then
   exit 0
 fi
 
+# Read user prompt from stdin to allow setup commands through
+USER_PROMPT=$(cat 2>/dev/null || echo "")
+if echo "$USER_PROMPT" | grep -qi "setup-project\|setup_project\|git-collab\|git.collab"; then
+  exit 0
+fi
+
 # No config — block and show setup instructions
 cat >&2 <<'MSG'
 [Git Collaboration Workflow] 项目未配置
 
-首次使用需要初始化配置。请运行 /setup-project 完成配置，或手动创建配置文件：
-
-  mkdir -p .claude
-  echo "mode: full" > .claude/git-collab.yml
-
-可选模式：
-  full     — 全部 hook 生效（推荐）
-  minimal  — 仅 secret 扫描 + 冲突标记检测
-  disabled — 关闭插件
+首次使用需要初始化配置。请输入 /setup-project 完成引导式配置。
 MSG
 exit 2
