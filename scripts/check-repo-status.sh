@@ -35,64 +35,30 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
     exit 0
   fi
 else
-  # Bootstrap: no config file, pop native OS dialog for mode selection
-  if [ "$IS_GIT_REPO" = "false" ]; then
-    CHOICE=$(osascript <<'APPLESCRIPT'
-set dialogText to "🔧 Git Collaboration Workflow 插件初始化" & return & return & "📍 当前目录不是 Git 仓库" & return & return & "请选择插件模式：" & return & return & "✅ full — 初始化 Git + 启用全部 hook" & return & "    分支保护、commit 格式校验、secret 扫描、冲突检测" & return & "    推荐用于团队协作项目" & return & return & "⚡ minimal — 初始化 Git + 仅安全检测" & return & "    仅保留 secret 扫描和冲突标记检测" & return & "    适合个人项目或轻量使用" & return & return & "🚫 disabled — 完全关闭插件" & return & "    不初始化 Git，所有 hook 静默" & return & return & "💡 之后可编辑 .claude/git-collab.yml 切换模式"
-set theChoice to choose from list {"full — 初始化 Git + 全部 hook", "minimal — 初始化 Git + 仅安全检测", "disabled — 关闭插件"} with prompt dialogText with title "Git Collaboration Workflow" default items {"full — 初始化 Git + 全部 hook"}
-if theChoice is false then
-  return "disabled"
-else
-  return item 1 of theChoice
-end if
-APPLESCRIPT
-    ) || CHOICE="disabled"
-  else
-    CHOICE=$(osascript <<'APPLESCRIPT'
-set dialogText to "🔧 Git Collaboration Workflow 插件初始化" & return & return & "请为此项目选择插件模式：" & return & return & "✅ full — 启用全部 hook" & return & "    分支保护、commit 格式校验、secret 扫描、冲突检测" & return & "    推荐用于团队协作项目" & return & return & "⚡ minimal — 仅安全检测" & return & "    仅保留 secret 扫描和冲突标记检测" & return & "    适合个人项目或轻量使用" & return & return & "🚫 disabled — 完全关闭插件" & return & "    所有 hook 静默，不产生任何干扰" & return & return & "💡 之后可编辑 .claude/git-collab.yml 切换模式"
-set theChoice to choose from list {"full — 全部 hook", "minimal — 仅安全检测", "disabled — 关闭插件"} with prompt dialogText with title "Git Collaboration Workflow" default items {"full — 全部 hook"}
-if theChoice is false then
-  return "disabled"
-else
-  return item 1 of theChoice
-end if
-APPLESCRIPT
-    ) || CHOICE="disabled"
-  fi
-
-  # Extract mode keyword from choice string
-  case "$CHOICE" in
-    full*) MODE="full" ;;
-    minimal*) MODE="minimal" ;;
-    *) MODE="disabled" ;;
-  esac
-
-  # If non-git and user chose full/minimal, run git init
-  if [ "$IS_GIT_REPO" = "false" ] && [ "$MODE" != "disabled" ]; then
-    git init -q
-  fi
-
-  # Write config
-  mkdir -p .claude
-  echo "mode: $MODE" > .claude/git-collab.yml
-
-  # Report result to Claude via systemMessage
+  # Bootstrap: no config file exists, inject mandatory setup context
+  IS_GIT_FLAG="$IS_GIT_REPO"
   python3 -c "
 import json
-mode = '$MODE'
-mode_desc = {'full': '全部 hook 生效', 'minimal': '仅安全检测', 'disabled': '插件已关闭'}
-msg = f'''[Git Collaboration Workflow] ✅ 项目已配置为 {mode} 模式（{mode_desc.get(mode, mode)}）。
-配置文件：.claude/git-collab.yml
-切换模式：编辑该文件的 mode 值（full/minimal/disabled）即可，下次 session 生效。'''
-print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':msg}}))
-"
+is_git = '$IS_GIT_FLAG' == 'true'
+note = '' if is_git else '当前目录不是 Git 仓库。如需使用 Git 协作功能，需要先运行 git init。\n\n'
+ctx = '''## [MANDATORY SETUP — Git Collaboration Workflow]
 
-  # If disabled, exit now; otherwise fall through to normal checks
-  if [ "$MODE" = "disabled" ]; then
-    exit 0
-  fi
-  # If was non-git but now initialized, set flag for remaining checks
-  IS_GIT_REPO=true
+{note}未找到 .claude/git-collab.yml 配置文件。在执行任何其他操作之前，你必须立即使用 AskUserQuestion 工具向用户展示以下选择：
+
+请为此项目选择 Git Collaboration Workflow 插件模式：
+- **full** — 全部 hook 生效（推荐用于团队协作项目）
+- **minimal** — 仅保留 secret 扫描和冲突标记检测
+- **disabled** — 完全关闭插件
+
+用户选择后，执行以下操作：
+1. 如果当前不是 Git 仓库且用户选择了 full 或 minimal，先运行 git init
+2. 创建配置文件：mkdir -p .claude && 写入 mode: <用户选择的模式> 到 .claude/git-collab.yml
+3. 确认配置完成
+
+在此配置完成之前，不要处理用户的任何其他请求。'''.format(note=note)
+print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':ctx}}))
+"
+  exit 0
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
