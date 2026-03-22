@@ -1,6 +1,7 @@
 ---
 name: setup-project
 description: Configure Git Collaboration Workflow plugin for this project. Auto-invoked on first session when .claude/git-collab.yml is missing. Presents mode selection (full/minimal/disabled) and optionally initializes git repo.
+model: haiku
 ---
 
 # Setup Project — Git Collaboration Workflow

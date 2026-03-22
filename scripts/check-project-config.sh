@@ -23,5 +23,7 @@ cat >&2 <<'MSG'
 [Git Collaboration Workflow] 项目未配置
 
 首次使用需要初始化配置。请输入 /setup-project 完成引导式配置。
+
+后续如需更改模式，直接编辑 .claude/git-collab.yml 文件即可（mode: full / minimal / disabled）。
 MSG
 exit 2
