@@ -37,25 +37,28 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
 else
   # Bootstrap: no config file, pop native OS dialog for mode selection
   if [ "$IS_GIT_REPO" = "false" ]; then
-    DIALOG_TEXT="🔧 Git Collaboration Workflow 插件初始化\n\n📍 当前目录不是 Git 仓库\n\n请选择插件模式：\n\n✅ full — 初始化 Git + 启用全部 hook\n    分支保护、commit 格式校验、secret 扫描、冲突检测等\n    推荐用于团队协作项目\n\n⚡ minimal — 初始化 Git + 仅安全检测\n    仅保留 secret 扫描和冲突标记检测\n    适合个人项目或轻量使用\n\n🚫 disabled — 完全关闭插件\n    不初始化 Git，所有 hook 静默\n\n💡 之后可随时修改 .claude/git-collab.yml 中的 mode 值来切换模式"
-    BUTTON_LIST='{"full — 初始化 Git + 全部 hook", "minimal — 初始化 Git + 仅安全检测", "disabled — 关闭插件"}'
+    CHOICE=$(osascript <<'APPLESCRIPT'
+set dialogText to "🔧 Git Collaboration Workflow 插件初始化" & return & return & "📍 当前目录不是 Git 仓库" & return & return & "请选择插件模式：" & return & return & "✅ full — 初始化 Git + 启用全部 hook" & return & "    分支保护、commit 格式校验、secret 扫描、冲突检测" & return & "    推荐用于团队协作项目" & return & return & "⚡ minimal — 初始化 Git + 仅安全检测" & return & "    仅保留 secret 扫描和冲突标记检测" & return & "    适合个人项目或轻量使用" & return & return & "🚫 disabled — 完全关闭插件" & return & "    不初始化 Git，所有 hook 静默" & return & return & "💡 之后可编辑 .claude/git-collab.yml 切换模式"
+set theChoice to choose from list {"full — 初始化 Git + 全部 hook", "minimal — 初始化 Git + 仅安全检测", "disabled — 关闭插件"} with prompt dialogText with title "Git Collaboration Workflow" default items {"full — 初始化 Git + 全部 hook"}
+if theChoice is false then
+  return "disabled"
+else
+  return item 1 of theChoice
+end if
+APPLESCRIPT
+    ) || CHOICE="disabled"
   else
-    DIALOG_TEXT="🔧 Git Collaboration Workflow 插件初始化\n\n请选择插件模式：\n\n✅ full — 启用全部 hook\n    分支保护、commit 格式校验、secret 扫描、冲突检测等\n    推荐用于团队协作项目\n\n⚡ minimal — 仅安全检测\n    仅保留 secret 扫描和冲突标记检测\n    适合个人项目或轻量使用\n\n🚫 disabled — 完全关闭插件\n    所有 hook 静默，不产生任何干扰\n\n💡 之后可随时修改 .claude/git-collab.yml 中的 mode 值来切换模式"
-    BUTTON_LIST='{"full — 全部 hook", "minimal — 仅安全检测", "disabled — 关闭插件"}'
+    CHOICE=$(osascript <<'APPLESCRIPT'
+set dialogText to "🔧 Git Collaboration Workflow 插件初始化" & return & return & "请为此项目选择插件模式：" & return & return & "✅ full — 启用全部 hook" & return & "    分支保护、commit 格式校验、secret 扫描、冲突检测" & return & "    推荐用于团队协作项目" & return & return & "⚡ minimal — 仅安全检测" & return & "    仅保留 secret 扫描和冲突标记检测" & return & "    适合个人项目或轻量使用" & return & return & "🚫 disabled — 完全关闭插件" & return & "    所有 hook 静默，不产生任何干扰" & return & return & "💡 之后可编辑 .claude/git-collab.yml 切换模式"
+set theChoice to choose from list {"full — 全部 hook", "minimal — 仅安全检测", "disabled — 关闭插件"} with prompt dialogText with title "Git Collaboration Workflow" default items {"full — 全部 hook"}
+if theChoice is false then
+  return "disabled"
+else
+  return item 1 of theChoice
+end if
+APPLESCRIPT
+    ) || CHOICE="disabled"
   fi
-
-  # macOS native dialog via osascript
-  CHOICE=$(osascript -e "
-    set theChoice to choose from list $BUTTON_LIST \
-      with prompt \"$DIALOG_TEXT\" \
-      with title \"Git Collaboration Workflow\" \
-      default items {item 1 of $BUTTON_LIST}
-    if theChoice is false then
-      return \"disabled\"
-    else
-      return item 1 of theChoice
-    end if
-  " 2>/dev/null) || CHOICE="disabled"
 
   # Extract mode keyword from choice string
   case "$CHOICE" in
