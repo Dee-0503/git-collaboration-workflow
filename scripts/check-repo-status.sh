@@ -35,8 +35,13 @@ if [ -f "$GIT_COLLAB_CONFIG" ]; then
     exit 0
   fi
 else
-  # Bootstrap: no config file exists, auto-invoke setup-project skill
-  printf '{"systemMessage": "[Git Collaboration Workflow] 未找到项目配置，正在启动初始化引导...", "autoInvokeSkill": "setup-project"}\n'
+  # Bootstrap: no config file exists, inject mandatory setup context
+  if [ "$IS_GIT_REPO" = "false" ]; then
+    NOT_GIT_NOTE="当前目录不是 Git 仓库。如需使用 Git 协作功能，需要先运行 git init。\n\n"
+  else
+    NOT_GIT_NOTE=""
+  fi
+  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"## [MANDATORY SETUP — Git Collaboration Workflow]\n\n%s未找到 .claude/git-collab.yml 配置文件。在执行任何其他操作之前，你必须立即使用 AskUserQuestion 工具向用户展示以下选择：\n\n请为此项目选择 Git Collaboration Workflow 插件模式：\n- **full** — 全部 hook 生效（推荐用于团队协作项目）\n- **minimal** — 仅保留 secret 扫描和冲突标记检测\n- **disabled** — 完全关闭插件\n\n用户选择后，执行以下操作：\n1. 如果当前不是 Git 仓库且用户选择了 full 或 minimal，先运行 git init\n2. 创建配置文件：mkdir -p .claude && echo '"'"'mode: <用户选择的模式>'"'"' > .claude/git-collab.yml\n3. 确认配置完成\n\n在此配置完成之前，不要处理用户的任何其他请求。"}}\n' "$NOT_GIT_NOTE"
   exit 0
 fi
 
